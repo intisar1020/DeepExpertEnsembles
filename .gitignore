@@ -1,0 +1,35 @@
+#logs
+/logs/
+
+# checkpoints backup
+/ck_backup/
+
+# training data
+/data/
+
+# caches
+/utils/__pycache__/
+
+# images
+/utils/images/
+*.pyc
+
+# presentation files
+/ppts/
+*.pptx
+
+# all demo png and csv files
+*.png
+*.csv
+
+/.vscode
+/corrected_images/
+*.tar
+*.pth
+/work_space
+
+*.txt
+
+/forked_repo/wts/
+/forked_repo/data/
+/forked_repo/checkpoint/
