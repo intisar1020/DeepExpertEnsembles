@@ -29,7 +29,7 @@
 /work_space
 
 *.txt
-
+*log 
 /forked_repo/wts/
 /forked_repo/data/
 /forked_repo/checkpoint/

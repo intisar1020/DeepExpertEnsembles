@@ -108,7 +108,7 @@ parser.add_argument('-router_cp', '--router_cp', default='work_space/pre-trained
 parser.add_argument('-router_cp_icc', '--router_cp_icc', default='work_space/pre-trained_wts/resnet20_icc/model_best.pth.tar', type=str, metavar='PATH',
                     help='checkpoint path of the router weight for icc. We eval. router train on partial set of train data for ICC calculation.')
 
-parser.add_argument('-dp', '--dataset_path', default='/home/intisar/Documents/researches/all_datasets/cifar100png/', type=str)
+parser.add_argument('-dp', '--dataset_path', default='/path/to/dataset', type=str)
 parser.add_argument('-save_log_path', '--save_log_path', default='./logs/', type=str)
 
 # Architecture details
@@ -544,12 +544,15 @@ def main():
 
     #########################################################################
     matrix = calculate_matrix(router_icc, val_loader_single, num_classes, only_top2=True)
-    #####################################################################
-    #logging.info ("Calculating the heatmap for confusing class....")
-    #ls = np.arange(num_classes)
-    #heatmap(matrix, ls, ls) # show heatmap
-    ####################################################################################################
+    #####################################################################################
     binary_list, super_list, dict_ = return_topk_args_from_heatmap(matrix, num_classes, cutoff_thresold=3, binary_=False)
+
+    #####################################################################
+    logging.info ("Calculating the heatmap for confusing class....")
+    ls = np.arange(num_classes)
+    heatmap(matrix, ls, ls) # show heatmap
+    barchart(dict_) # show barchart for ICC pair and corresponding number of
+    #####################################################################
 
     expert_train_dataloaders,  expert_test_dataloaders, lois = expert_dataloader(
                 data_name="cifar100",
@@ -579,8 +582,6 @@ def main():
     split_f = lambda x: x.split(".")[0]
     teacher_lois = [split_f(index_) for index_ in index_list]
     
-
-
     for loi in lois:
         try:
             index_list = loi.split("_")
@@ -592,16 +593,18 @@ def main():
         lois_named[loi] = name_str
         logging.info(f"Numeric index: {loi}, Named index: {name_str}")
     logging.info(f"Number of supersets: {len(super_list)}")
-    exit(0)
-    
+  
     #lois = lois[0:20] #+ lois[-3:]
   
     msnet = load_experts(num_classes, list_of_index=lois, pretrained=False) # pool of de-coupled expoert networks.
     teacher_msnet = load_experts(num_classes, list_of_index=teacher_lois, pretrained=True)
     
 
-    args.train_mode = False
+    args.train_mode = True
     if (not args.train_mode):
+        index_list = os.listdir(os.path.join("work_space", args.exp_id, args.checkpoint_path))
+        split_f = lambda x: x.split(".")[0]
+        lois = [split_f(index_) for index_ in index_list]
         for loi in lois:
             try:
                 wts = torch.load(os.path.join("work_space", args.exp_id, args.checkpoint_path, loi+'.pth'))
@@ -620,16 +623,15 @@ def main():
     if (args.train_mode):
         for loi in lois:
             optimizer = optim.SGD(msnet[loi].parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-            teacher_supersets = get_teacher_list(loi, teacher_lois)
             best_so_far = 0.0
-            if (not len(teacher_supersets)):
-                teacher_supersets = random.choices(teacher_lois, k=5)
-            logging.info("Teachers for distill: ", teacher_supersets)
+            # teacher_supersets = get_teacher_list(loi, teacher_lois)
+            # if (not len(teacher_supersets)):
+            #     teacher_supersets = random.choices(teacher_lois, k=5)
+            # logging.info("Teachers for distill: ", teacher_supersets)
             for epoch in range(1, args.expert_train_epochs):
                 adjust_learning_rate(epoch, optimizer)
-                #train(epoch, msnet[loi], teacher, expert_train_dataloaders[loi], optimizer)
-                train_distilled_ensemble(epoch, msnet[loi], teacher_msnet, teacher_supersets, expert_train_dataloaders[loi], optimizer)
-                
+                train(epoch, msnet[loi], teacher, expert_train_dataloaders[loi], optimizer)
+                #train_distilled_ensemble(epoch, msnet[loi], teacher_msnet, teacher_supersets, expert_train_dataloaders[loi], optimizer)
                 t1, t2 = test_expert(msnet[loi], expert_test_dataloaders[loi])
                 t1_all, t2 = test_expert(msnet[loi], test_loader_router)
                 

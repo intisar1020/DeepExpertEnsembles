@@ -21,7 +21,8 @@ import copy
 
 __all__ = [
     'return_topk_args_from_heatmap', 
-    'heatmap', 
+    'heatmap',
+    'barchart',
     'save_checkpoint', 
     'calculate_matrix',
     'make_list_for_plots',
@@ -118,8 +119,7 @@ def return_topk_args_from_heatmap(matrix, n, cutoff_thresold=5, binary_=True):
 
 def heatmap(data, row_labels, col_labels, ax=None,
             cbar_kw={}, cbarlabel="", **kwargs):
-
-
+    
     if not ax:
         ax = plt.gca()
 
@@ -154,12 +154,23 @@ def heatmap(data, row_labels, col_labels, ax=None,
     ax.grid(which="minor", color="w", linestyle='-', linewidth=3)
     ax.tick_params(which="minor", bottom=False, left=False) 
     plt.show()
-    if not os.path.exists('checkpoint/figures/'):
-        os.makedirs('checkpoint/figures/')
-    figure_name = 'checkpoint/figures/heatmap_%s.png'%str(depth)
-    plt.savefig(figure_name)
+    # if not os.path.exists('work_space/figures/'):
+    #     os.makedirs('checkpoint/figures/')
+    # figure_name = 'checkpoint/figures/heatmap_%s.png'%str(depth)
+    # plt.savefig(figure_name)
     return im, cbar
 
+
+def barchart(dict_):
+    keys_ = []
+    values_ = []
+    for k, v in dict_.items():
+        keys_.append(k)
+        values_.append(v)
+    y_pos = np.arange(len(keys_))
+    plt.bar(y_pos, values_, align='center', alpha=0.5)
+    plt.xticks(y_pos, keys_)
+    plt.show()
 
 def make_list_for_plots(lois, plot, indexes):
     lst = []
