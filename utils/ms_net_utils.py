@@ -34,7 +34,7 @@ def sort_by_value(dict_, reverse=False):
     return dict_tuple_sorted
 
 
-def return_topk_args_from_heatmap(matrix, n, topk=2, binary_=True):
+def return_topk_args_from_heatmap(matrix, n, cutoff_thresold=5, binary_=True):
     """_summary_
 
     Args:
@@ -50,21 +50,27 @@ def return_topk_args_from_heatmap(matrix, n, topk=2, binary_=True):
     tuple_list = []
     value_of_tuple = []
     dict_tuple = {}
+    unique_class_set = set()
     for i in range(0, n):
         for j in range(0, n):
-            if ( not visited[i][j] and not visited[j][i] and matrix[i][j]>0):
+            if (not visited[i][j] and not visited[j][i] and matrix[i][j]>0):
                 dict_tuple[str(i) + "_" + str(j)] =  matrix[i][j]
                 visited[i][j] = 1
                 visited[j][i] = 1   
                    
-    dict_sorted = sort_by_value(dict_tuple, reverse=True)    
+    dict_sorted = sort_by_value(dict_tuple, reverse=True)
     for k, v in dict_sorted.items():
+        if (v < cutoff_thresold):
+            continue
         sub_1, sub_2 = k.split("_")
         sub_1, sub_2 = int(sub_1), int(sub_2)
+        unique_class_set.add(sub_1)
+        unique_class_set.add(sub_2)
         tuple_list.append([sub_1, sub_2])
         value_of_tuple.append(v)
-        if (len(tuple_list) == topk):
-            break
+  
+        # if (len(tuple_list) == topk):
+        #     break
     if (binary_):
         return tuple_list, [], value_of_tuple
     ''' if not binary we go further and 
@@ -100,27 +106,14 @@ def return_topk_args_from_heatmap(matrix, n, topk=2, binary_=True):
     for elem1 in new_tuple:
         is_superset = True
         for elem2 in new_tuple:
-            if (elem1 != elem2 and set(elem1).issubset(set(elem2)) or len(elem1)==2):
+            if ((set(elem1) != set(elem2) and set(elem1).issubset(set(elem2))) or len(elem1)==2):
                 is_superset = False
                 break
         if (is_superset):
             superset_list.append(elem1)
-    
-    # unique_list = []
-    # for elem1 in new_tuple:
-    #     found_unique_set = True
-    #     for elem2 in superset_list:
-    #         if ((set(elem1) != set(elem2)) and  (set(elem1)&set(elem2)==None) and len(elem2)>2):
-    #             found_unique_set = True
-    #         else:
-    #             found_unique_set = False
-        
-    #     if (found_unique_set):
-    #         unique_list.append(elem1)
 
-    #superset_list += unique_list
     final_tuples = tuple_list  + superset_list
-    return final_tuples, superset_list, value_of_tuple
+    return final_tuples, superset_list, dict_sorted
     
 
 def heatmap(data, row_labels, col_labels, ax=None,
@@ -163,8 +156,8 @@ def heatmap(data, row_labels, col_labels, ax=None,
     plt.show()
     if not os.path.exists('checkpoint/figures/'):
         os.makedirs('checkpoint/figures/')
-    # figure_name = 'checkpoint/figures/heatmap_%s.png'%str(depth)
-    # plt.savefig(figure_name)
+    figure_name = 'checkpoint/figures/heatmap_%s.png'%str(depth)
+    plt.savefig(figure_name)
     return im, cbar
 
 

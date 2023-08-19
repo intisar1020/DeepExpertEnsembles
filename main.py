@@ -103,6 +103,10 @@ parser.add_argument('--topk', type=int, default=100, metavar='N',
 # Paths
 parser.add_argument('-cp', '--checkpoint_path', default='checkpoint_experts', type=str, metavar='PATH',
                     help='path to save checkpoint (default: checkpoint_experts)')
+parser.add_argument('-router_cp', '--router_cp', default='work_space/pre-trained_wts/resnet20/run2/model_best.pth.tar', type=str, metavar='PATH',
+                    help='checkpoint path of the router weight')
+parser.add_argument('-router_cp_icc', '--router_cp_icc', default='work_space/pre-trained_wts/resnet20_icc/model_best.pth.tar', type=str, metavar='PATH',
+                    help='checkpoint path of the router weight for icc. We eval. router train on partial set of train data for ICC calculation.')
 
 parser.add_argument('-dp', '--dataset_path', default='/home/intisar/Documents/researches/all_datasets/cifar100png/', type=str)
 parser.add_argument('-save_log_path', '--save_log_path', default='./logs/', type=str)
@@ -216,13 +220,6 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tem
             experts_output = [experts[exp_](dta) for exp_ in list_of_experts]
         experts_output.append(output_raw)
         experts_output_avg = average(experts_output)
-        # mask_ = torch.zeros([1, 100])
-        # mask_ = mask_.cuda()
-        # mask_[0][preds[0]] = 1
-        # mask_[0][preds[1]] = 1
-        # experts_output_prob = F.softmax(experts_output_avg, dim=1)
-        # pred = torch.argsort(experts_output_prob, dim=1, descending=True)[0:, 0]
-        # experts_output_avg = experts_output_avg * mask_
         exp_conf, exp_pred = torch.sort(experts_output_avg, dim=1, descending=True)
         #print (f"List of Experts: {list_of_experts}, Expert prediction: {exp_pred[0:, 0]}, router pred: {preds}, target: {target}")
         pred = exp_pred[0:, 0]
@@ -232,7 +229,13 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tem
         if (preds[0] == target.cpu().numpy()[0]): #or preds[1] == target.cpu().numpy()[0]):
             by_router += 1
             
-            
+       # mask_ = torch.zeros([1, 100])
+        # mask_ = mask_.cuda()
+        # mask_[0][preds[0]] = 1
+        # mask_[0][preds[1]] = 1
+        # experts_output_prob = F.softmax(experts_output_avg, dim=1)
+        # pred = torch.argsort(experts_output_prob, dim=1, descending=True)[0:, 0]
+        # experts_output_avg = experts_output_avg * mask_      
        
     print (f"Expert dict: {expert_count}, MS-NET acc: {correct}, Router acc: {by_router}")
 
@@ -389,20 +392,20 @@ def test_expert(model, test_loader):
     return top1.avg, top2.avg
 
 
-def make_router_and_optimizer(num_classes, load_weights=False):
+def make_router_and_optimizer(num_classes, ckpt_path=""):
 
     model = models.__dict__[args.arch](
         num_classes=num_classes,
         depth=args.depth,
         block_name=args.block_name)
     model = model.cuda()
-    if (load_weights):
-        chk = torch.load('work_space/pre-trained_wts/resnet20/run2/model_best.pth.tar')
+    if (ckpt_path):
+        chk = torch.load(ckpt_path)
         model.load_state_dict(chk['net'])
-    optimizer = optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9,
-                      weight_decay=5e-4)
+    # optimizer = optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9,
+    #                   weight_decay=5e-4)
     
-    return model, optimizer
+    return model
 
 
 def load_experts(num_classes, list_of_index=[None], pretrained=True):
@@ -517,13 +520,17 @@ def get_teacher_list(loi, teacher_lois):
 
 def main():
     
-    _, test_loader_router, test_loader_single, num_classes, list_of_classes = get_dataloader(
+    _, test_loader_router, test_loader_single, val_loader_single, num_classes, list_of_classes = get_dataloader(
         dataset_path=args.dataset_path,
         TRAIN_BATCH=args.train_batch, 
         TEST_BATCH=args.test_batch)
 
     logging.info("==> creating standalone router model")
-    router, _ = make_router_and_optimizer(num_classes, load_weights=True)
+    router = make_router_and_optimizer(num_classes, ckpt_path=args.router_cp)
+
+    logging.info("==> creating ICC router model")
+    router_icc = make_router_and_optimizer(num_classes, ckpt_path=args.router_cp_icc)
+
     size_of_router = sum(p.numel() for p in router.parameters() if p.requires_grad == True)
     print ("Network size {:.2f}M".format(size_of_router/1000000))
 
@@ -536,18 +543,18 @@ def main():
         return
 
     #########################################################################
-    matrix = calculate_matrix(router, test_loader_single, num_classes, only_top2=True)
+    matrix = calculate_matrix(router_icc, val_loader_single, num_classes, only_top2=True)
     #####################################################################
     #logging.info ("Calculating the heatmap for confusing class....")
     #ls = np.arange(num_classes)
     #heatmap(matrix, ls, ls) # show heatmap
     ####################################################################################################
-    binary_list, super_list, values = return_topk_args_from_heatmap(matrix, num_classes, topk=args.topk, binary_=False)
+    binary_list, super_list, dict_ = return_topk_args_from_heatmap(matrix, num_classes, cutoff_thresold=3, binary_=False)
 
     expert_train_dataloaders,  expert_test_dataloaders, lois = expert_dataloader(
                 data_name="cifar100",
                 dataset_path=args.dataset_path,
-                matrix=binary_list,
+                matrix=super_list,
                 TRAIN_BATCH=args.train_batch, 
                 TEST_BATCH=args.test_batch,
                 weighted_sampler=True)
@@ -585,7 +592,7 @@ def main():
         lois_named[loi] = name_str
         logging.info(f"Numeric index: {loi}, Named index: {name_str}")
     logging.info(f"Number of supersets: {len(super_list)}")
-
+    exit(0)
     
     #lois = lois[0:20] #+ lois[-3:]
   

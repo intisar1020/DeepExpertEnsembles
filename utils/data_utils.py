@@ -111,14 +111,19 @@ def get_dataloader(
         root=os.path.join(dataset_path, "test"),
         transform=get_test_transforms(data_name=data_name)
         )
+    
+    valset = datasets.ImageFolder(
+        root=os.path.join(dataset_path, "val"),
+        transform=get_test_transforms(data_name=data_name)
+        )
 
     num_classes = len(trainset.classes)
     list_of_classes = trainset.classes
     train_loader = DataLoader(trainset, batch_size=TRAIN_BATCH, shuffle=True, num_workers=4, pin_memory=True)
     test_loader = DataLoader(testset, batch_size=TEST_BATCH, shuffle=False, num_workers=4, pin_memory=True)
     test_loader_single = DataLoader(testset, batch_size=1, shuffle=False, num_workers=4, pin_memory=True)
-    
-    return train_loader, test_loader, test_loader_single, num_classes, list_of_classes
+    val_loader_single = DataLoader(testset, batch_size=1, shuffle=False, num_workers=4, pin_memory=True) 
+    return train_loader, test_loader, test_loader_single, val_loader_single, num_classes, list_of_classes
 
 
 def expert_dataloader(

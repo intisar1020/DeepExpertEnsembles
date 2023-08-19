@@ -51,7 +51,7 @@ parser.add_argument('-name', '--data_name', default='cifar100', type=str)
 
 # architecture
 parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet', help='backbone architecture')
-parser.add_argument('--depth', type=int, default=110, help='Model depth.')
+parser.add_argument('--depth', type=int, default=20, help='Model depth.')
 parser.add_argument('--block-name', type=str, default='BasicBlock')
 
 
