@@ -35,7 +35,7 @@ from utils.data_utils import *
 from utils.basic_utils import count_parameters_in_MB
 from utils.basic_utils import load_pretrained_model
 from utils.basic_utils import AverageMeter, accuracy, transform_time
-
+from utils.basic_utils import is_subset, have_common_elements
 
 # losses
 from kd_losses import *
@@ -497,14 +497,6 @@ def adjust_learning_rate(epoch, optimizer):
             param_group['lr'] *= 0.1
         for param in optimizer.param_groups:
             print ("Lr {}".format(param['lr']))
-
-
-def is_subset(a, b):
-    return a.issubset(b)
-
-
-def have_common_elements(a, b):
-    return bool(a & b)
 
 
 def get_teacher_list(loi, teacher_lois):
