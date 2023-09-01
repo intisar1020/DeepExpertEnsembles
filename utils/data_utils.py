@@ -122,7 +122,8 @@ def get_dataloader(
     train_loader = DataLoader(trainset, batch_size=TRAIN_BATCH, shuffle=True, num_workers=4, pin_memory=True)
     test_loader = DataLoader(testset, batch_size=TEST_BATCH, shuffle=False, num_workers=4, pin_memory=True)
     test_loader_single = DataLoader(testset, batch_size=1, shuffle=False, num_workers=4, pin_memory=True)
-    val_loader_single = DataLoader(testset, batch_size=1, shuffle=False, num_workers=4, pin_memory=True) 
+    val_loader_single = DataLoader(testset, batch_size=1, shuffle=False, num_workers=4, pin_memory=True)
+    
     return train_loader, test_loader, test_loader_single, val_loader_single, num_classes, list_of_classes
 
 

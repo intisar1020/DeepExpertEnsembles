@@ -26,7 +26,7 @@ parser = argparse.ArgumentParser(description='Stable MS-NET')
 
 # save dirs:
 parser.add_argument('--save_root', type=str, default='work_space', help='models and logs are saved here')
-parser.add_argument('--id', type=str, default='router_resnet110_c100', help='experiment IDS')
+parser.add_argument('--id', type=str, default='ti_resnet20_router', help='experiment IDS')
 
 
 # training params.
@@ -57,7 +57,7 @@ parser.add_argument('--block-name', type=str, default='BasicBlock')
 
 
 # Others
-parser.add_argument('--seed', type=int, default=2, help='random seed')
+parser.add_argument('--seed', type=int, default=100, help='random seed')
 parser.add_argument('--pretrained_wts', type=str, default='work_space/exp_0/', help='load with pretrained wts')
 
 args = parser.parse_args() # its easier for me to keep ti global.
@@ -154,7 +154,7 @@ def adjust_learning_rate(epoch, optimizer):
 def main():
     # Prepare the main model.
     model = models.__dict__[args.arch](
-        num_classes=100,
+        num_classes=200,
         depth=args.depth,
         block_name=args.block_name)
     model = model.cuda() # Trans. to GPU
@@ -166,7 +166,8 @@ def main():
     logging.info('Student param size = %fMB', count_parameters_in_MB(model))
     
     # Prepare dataloader. 
-    trldr, tstldr, _, _, _ = get_dataloader(
+    #train_loader, test_loader, test_loader_single, val_loader_single, num_classes, list_of_classes
+    trldr, tstldr, _, _, _, _ = get_dataloader(
         data_name=args.data_name,
         dataset_path=args.dataset, 
         TRAIN_BATCH=128, 

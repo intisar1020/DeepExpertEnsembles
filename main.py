@@ -45,7 +45,7 @@ from kd_losses import *
 parser = argparse.ArgumentParser(description='Stable MS-NET')
 
 #experiment tracker
-parser.add_argument('--exp_id', default='exp5', type=str, help='id of your current experiments')
+parser.add_argument('--exp_id', default='ti_exp0', type=str, help='id of your current experiments')
 
 
 # Hyper-parameters
@@ -214,7 +214,9 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tem
                 if (str(r_pred) in exp_cls and exp not in list_of_experts):
                     list_of_experts.append(exp)
                     expert_count[exp] += 1
-                    #break
+                    break
+            
+                    
                     
         with torch.no_grad():
             experts_output = [experts[exp_](dta) for exp_ in list_of_experts]
@@ -392,7 +394,7 @@ def test_expert(model, test_loader):
     return top1.avg, top2.avg
 
 
-def make_router_and_optimizer(num_classes, ckpt_path=""):
+def make_router_and_optimizer(num_classes, ckpt_path=None):
 
     model = models.__dict__[args.arch](
         num_classes=num_classes,
@@ -402,8 +404,7 @@ def make_router_and_optimizer(num_classes, ckpt_path=""):
     if (ckpt_path):
         chk = torch.load(ckpt_path)
         model.load_state_dict(chk['net'])
-    # optimizer = optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0.9,
-    #                   weight_decay=5e-4)
+        logging.info(f"Loading router from ckpt path: {ckpt_path}")
     
     return model
 
@@ -586,17 +587,17 @@ def main():
         logging.info(f"Numeric index: {loi}, Named index: {name_str}")
     logging.info(f"Number of supersets: {len(super_list)}")
   
-    #lois = lois[0:20] #+ lois[-3:]
+    lois = lois[8:] #+ lois[-3:]
   
     msnet = load_experts(num_classes, list_of_index=lois, pretrained=False) # pool of de-coupled expoert networks.
-    teacher_msnet = load_experts(num_classes, list_of_index=teacher_lois, pretrained=True)
+    teacher_msnet = load_experts(num_classes, list_of_index=teacher_lois, pretrained=False) # should set to true when using as teacher.
     
 
     args.train_mode = True
     if (not args.train_mode):
-        index_list = os.listdir(os.path.join("work_space", args.exp_id, args.checkpoint_path))
-        split_f = lambda x: x.split(".")[0]
-        lois = [split_f(index_) for index_ in index_list]
+        # index_list = os.listdir(os.path.join("work_space", args.exp_id, args.checkpoint_path))
+        # split_f = lambda x: x.split(".")[0]
+        # lois = [split_f(index_) for index_ in index_list]
         for loi in lois:
             try:
                 wts = torch.load(os.path.join("work_space", args.exp_id, args.checkpoint_path, loi+'.pth'))
@@ -609,7 +610,7 @@ def main():
             #test_expert(router, expert_test_dataloaders[loi])
         ensemble_inference(test_loader_router, msnet, router)
         #single_class_test_dataloaders['35'] expert_test_dataloaders['4_72_91_44_18_55_27_30']
-        inference_with_experts_and_routers(test_loader_single, msnet, router, topk=2, temp_loader=expert_test_dataloaders)
+        inference_with_experts_and_routers(test_loader_single, msnet, router, topk=3, temp_loader=expert_test_dataloaders)
 
 
     if (args.train_mode):
