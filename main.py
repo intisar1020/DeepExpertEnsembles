@@ -159,87 +159,87 @@ kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
 
 
-def inference_with_experts_and_routers(test_loader, experts, router, topk=2, temp_loader=None):
-    """ function to perform evaluation with experts
+# def inference_with_experts_and_routers(test_loader, experts, router, topk=2, temp_loader=None):
+#     """ function to perform evaluation with experts
     
-    Args:
-        test_loader (_type_): _description_
-        experts (_type_): _description_
-        router (_type_): _description_
-        topk (int, optional): _description_. Defaults to 2.
-        temp_loader (_type_, optional): _description_. Defaults to None.
-    """
-    freqMat = np.zeros((100, 100)) # -- debug
-    router.eval()
-    experts_on_stack = []
-    expert_count = {} 
-    for k, v in experts.items():
-        experts[k].eval()
-        experts_on_stack.append(k)
-        expert_count[k] = 0
-        # test_expert(experts[k], temp_loader[k])
-        # test_expert(router, temp_loader[k])
+#     Args:
+#         test_loader (_type_): _description_
+#         experts (_type_): _description_
+#         router (_type_): _description_
+#         topk (int, optional): _description_. Defaults to 2.
+#         temp_loader (_type_, optional): _description_. Defaults to None.
+#     """
+#     freqMat = np.zeros((100, 100)) # -- debug
+#     router.eval()
+#     experts_on_stack = []
+#     expert_count = {} 
+#     for k, v in experts.items():
+#         experts[k].eval()
+#         experts_on_stack.append(k)
+#         expert_count[k] = 0
+#         # test_expert(experts[k], temp_loader[k])
+#         # test_expert(router, temp_loader[k])
 
-    count = 0
-    ext_ = '.png'
-    correct = 0
-    by_experts = 0
-    by_router = 0
-    mistake_by_experts, mistake_by_router = 0, 0
-    agree, disagree = 0, 0
+#     count = 0
+#     ext_ = '.png'
+#     correct = 0
+#     by_experts = 0
+#     by_router = 0
+#     mistake_by_experts, mistake_by_router = 0, 0
+#     agree, disagree = 0, 0
 
-    for dta, target in test_loader:
-        count += 1
-        dta, target = dta.cuda(), target.cuda()
-        with torch.no_grad():
-            output_raw = router(dta)
-        output = F.softmax(output_raw, dim=1)
-        router_confs, router_preds = torch.sort(output, dim=1, descending=True)
-        preds = []
-        confs = []
-        for k in range(0, topk):
-            #ref = torch.argsort(output, dim=1, descending=True)[0:, k]
-            ref = router_preds[0:, k]
-            conf = router_confs[0:, k]
-            preds.append(ref.detach().cpu().numpy()[0]) # simply put the number. not the graph
-            confs.append(conf.detach().cpu().numpy()[0])
+#     for dta, target in test_loader:
+#         count += 1
+#         dta, target = dta.cuda(), target.cuda()
+#         with torch.no_grad():
+#             output_raw = router(dta)
+#         output = F.softmax(output_raw, dim=1)
+#         router_confs, router_preds = torch.sort(output, dim=1, descending=True)
+#         preds = []
+#         confs = []
+#         for k in range(0, topk):
+#             #ref = torch.argsort(output, dim=1, descending=True)[0:, k]
+#             ref = router_preds[0:, k]
+#             conf = router_confs[0:, k]
+#             preds.append(ref.detach().cpu().numpy()[0]) # simply put the number. not the graph
+#             confs.append(conf.detach().cpu().numpy()[0])
     
-        experts_output = []
+#         experts_output = []
      
-        list_of_experts = []
-        target_string = str(target.cpu().numpy()[0])
-        for exp in experts_on_stack: #
-            exp_cls = exp.split("_")
-            for r_pred in preds:
-                if (str(r_pred) in exp_cls and exp not in list_of_experts):
-                    list_of_experts.append(exp)
-                    expert_count[exp] += 1
-                    break
+#         list_of_experts = []
+#         target_string = str(target.cpu().numpy()[0])
+#         for exp in experts_on_stack: #
+#             exp_cls = exp.split("_")
+#             for r_pred in preds:
+#                 if (str(r_pred) in exp_cls and exp not in list_of_experts):
+#                     list_of_experts.append(exp)
+#                     expert_count[exp] += 1
+#                     break
             
                     
                     
-        with torch.no_grad():
-            experts_output = [experts[exp_](dta) for exp_ in list_of_experts]
-        experts_output.append(output_raw)
-        experts_output_avg = average(experts_output)
-        exp_conf, exp_pred = torch.sort(experts_output_avg, dim=1, descending=True)
-        #print (f"List of Experts: {list_of_experts}, Expert prediction: {exp_pred[0:, 0]}, router pred: {preds}, target: {target}")
-        pred = exp_pred[0:, 0]
+#         with torch.no_grad():
+#             experts_output = [experts[exp_](dta) for exp_ in list_of_experts]
+#         experts_output.append(output_raw)
+#         experts_output_avg = average(experts_output)
+#         exp_conf, exp_pred = torch.sort(experts_output_avg, dim=1, descending=True)
+#         #print (f"List of Experts: {list_of_experts}, Expert prediction: {exp_pred[0:, 0]}, router pred: {preds}, target: {target}")
+#         pred = exp_pred[0:, 0]
 
-        if (pred.cpu().numpy()[0] == target.cpu().numpy()[0]):
-            correct += 1
-        if (preds[0] == target.cpu().numpy()[0]): #or preds[1] == target.cpu().numpy()[0]):
-            by_router += 1
+#         if (pred.cpu().numpy()[0] == target.cpu().numpy()[0]):
+#             correct += 1
+#         if (preds[0] == target.cpu().numpy()[0]): #or preds[1] == target.cpu().numpy()[0]):
+#             by_router += 1
             
-       # mask_ = torch.zeros([1, 100])
-        # mask_ = mask_.cuda()
-        # mask_[0][preds[0]] = 1
-        # mask_[0][preds[1]] = 1
-        # experts_output_prob = F.softmax(experts_output_avg, dim=1)
-        # pred = torch.argsort(experts_output_prob, dim=1, descending=True)[0:, 0]
-        # experts_output_avg = experts_output_avg * mask_      
+#        # mask_ = torch.zeros([1, 100])
+#         # mask_ = mask_.cuda()
+#         # mask_[0][preds[0]] = 1
+#         # mask_[0][preds[1]] = 1
+#         # experts_output_prob = F.softmax(experts_output_avg, dim=1)
+#         # pred = torch.argsort(experts_output_prob, dim=1, descending=True)[0:, 0]
+#         # experts_output_avg = experts_output_avg * mask_      
        
-    print (f"Expert dict: {expert_count}, MS-NET acc: {correct}, Router acc: {by_router}")
+#     print (f"Expert dict: {expert_count}, MS-NET acc: {correct}, Router acc: {by_router}")
 
 
 
@@ -394,8 +394,16 @@ def test_expert(model, test_loader):
     return top1.avg, top2.avg
 
 
-def make_router_and_optimizer(num_classes, ckpt_path=None):
+def make_router(num_classes, ckpt_path=None):
+    """returns a router network (generalist model)
 
+    Args:
+        num_classes (int): _description_
+        ckpt_path (_type_, optional): _description_. Defaults to None.
+
+    Returns:
+        _type_: _description_
+    """
     model = models.__dict__[args.arch](
         num_classes=num_classes,
         depth=args.depth,
@@ -519,10 +527,10 @@ def main():
         TEST_BATCH=args.test_batch)
 
     logging.info("==> creating standalone router model")
-    router = make_router_and_optimizer(num_classes, ckpt_path=args.router_cp)
+    router = make_router(num_classes, ckpt_path=args.router_cp)
 
     logging.info("==> creating ICC router model")
-    router_icc = make_router_and_optimizer(num_classes, ckpt_path=args.router_cp_icc)
+    router_icc = make_router(num_classes, ckpt_path=args.router_cp_icc)
 
     size_of_router = sum(p.numel() for p in router.parameters() if p.requires_grad == True)
     print ("Network size {:.2f}M".format(size_of_router/1000000))
