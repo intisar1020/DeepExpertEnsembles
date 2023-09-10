@@ -45,7 +45,7 @@ from kd_losses import *
 parser = argparse.ArgumentParser(description='Stable MS-NET')
 
 #experiment tracker
-parser.add_argument('--exp_id', default='ti_exp0', type=str, help='id of your current experiments')
+parser.add_argument('--exp_id', default='ti_exp1', type=str, help='id of your current experiments')
 
 
 # Hyper-parameters
@@ -546,7 +546,7 @@ def main():
     #########################################################################
     matrix = calculate_matrix(router_icc, val_loader_single, num_classes, only_top2=True)
     #####################################################################################
-    binary_list, super_list, dict_ = return_topk_args_from_heatmap(matrix, num_classes, cutoff_thresold=3, binary_=False)
+    binary_list, super_list, dict_ = return_topk_args_from_heatmap(matrix, num_classes, cutoff_thresold=5, binary_=False)
 
     #####################################################################
     logging.info ("Calculating the heatmap for confusing class....")
@@ -595,30 +595,30 @@ def main():
         logging.info(f"Numeric index: {loi}, Named index: {name_str}")
     logging.info(f"Number of supersets: {len(super_list)}")
   
-    lois = lois[8:] #+ lois[-3:]
+    #lois = lois[31:] #+ lois[-3:]
   
     msnet = load_experts(num_classes, list_of_index=lois, pretrained=False) # pool of de-coupled expoert networks.
     teacher_msnet = load_experts(num_classes, list_of_index=teacher_lois, pretrained=False) # should set to true when using as teacher.
     
 
     args.train_mode = True
-    if (not args.train_mode):
-        # index_list = os.listdir(os.path.join("work_space", args.exp_id, args.checkpoint_path))
-        # split_f = lambda x: x.split(".")[0]
-        # lois = [split_f(index_) for index_ in index_list]
-        for loi in lois:
-            try:
-                wts = torch.load(os.path.join("work_space", args.exp_id, args.checkpoint_path, loi+'.pth'))
-                logging.info(f"Checkpoint for model: {loi} loaded")
-            except:
-                logging.info(f"Checkpoint for model: {loi} not found")
-                continue
-            msnet[loi].load_state_dict(wts['net'])
-            #test_expert(msnet[loi], expert_test_dataloaders[loi])
-            #test_expert(router, expert_test_dataloaders[loi])
-        ensemble_inference(test_loader_router, msnet, router)
-        #single_class_test_dataloaders['35'] expert_test_dataloaders['4_72_91_44_18_55_27_30']
-        inference_with_experts_and_routers(test_loader_single, msnet, router, topk=3, temp_loader=expert_test_dataloaders)
+    # if (not args.train_mode):
+    #     # index_list = os.listdir(os.path.join("work_space", args.exp_id, args.checkpoint_path))
+    #     # split_f = lambda x: x.split(".")[0]
+    #     # lois = [split_f(index_) for index_ in index_list]
+    #     for loi in lois:
+    #         try:
+    #             wts = torch.load(os.path.join("work_space", args.exp_id, args.checkpoint_path, loi+'.pth'))
+    #             logging.info(f"Checkpoint for model: {loi} loaded")
+    #         except:
+    #             logging.info(f"Checkpoint for model: {loi} not found")
+    #             continue
+    #         msnet[loi].load_state_dict(wts['net'])
+    #         #test_expert(msnet[loi], expert_test_dataloaders[loi])
+    #         #test_expert(router, expert_test_dataloaders[loi])
+    #     ensemble_inference(test_loader_router, msnet, router)
+    #     #single_class_test_dataloaders['35'] expert_test_dataloaders['4_72_91_44_18_55_27_30']
+    #     inference_with_experts_and_routers(test_loader_single, msnet, router, topk=3, temp_loader=expert_test_dataloaders)
 
 
     if (args.train_mode):
