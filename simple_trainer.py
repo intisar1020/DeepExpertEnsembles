@@ -1,4 +1,5 @@
 from ast import mod
+from configparser import NoOptionError
 import os
 import sys
 import argparse
@@ -34,29 +35,36 @@ parser.add_argument('--train-batch', default=128, type=int, metavar='N',
                     help='train batchsize')
 parser.add_argument('--test-batch', default=128, type=int, metavar='N',
                     help='test batchsize')
+parser.add_argument('--train_epochs', default=400, type=int, help='total number of training epochs')
 
+
+# pre-trained wts, resume
+parser.add_argument('-r', '--resume', action='store_true', default=False, help='resume from latest checkpoint')
+parser.add_argument('-ckpt', '--checkpoint', default=None, help='checkpoint path')
 
 # learning rate, scheduler, momentum
-parser.add_argument('--schedule', type=int, nargs='+', default=[150, 300, 400],
+parser.add_argument('--schedule', type=int, nargs='+', default=[90, 180, 300, 400],
                         help='Decrease learning rate at these epochs.')
 parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                     help='learning rate (default: 0.01)')
 parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                     help='SGD momentum (default: 0.9)')
-# dataset
-parser.add_argument('-d', '--dataset', default='data/cifar100png/', type=str)
+
+
+#### ***************** dataset *************************######
+parser.add_argument('-dp', '--dataset', default='data/cifar100png/', type=str)
 parser.add_argument('-name', '--data_name', default='cifar100', type=str)
 
 
 
-# architecture
+# architecture  *******************************###
 parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet', help='backbone architecture')
 parser.add_argument('--depth', type=int, default=20, help='Model depth.')
 parser.add_argument('--block-name', type=str, default='BasicBlock')
 
 
 
-# Others
+# Others  *************************######
 parser.add_argument('--seed', type=int, default=100, help='random seed')
 parser.add_argument('--pretrained_wts', type=str, default='work_space/exp_0/', help='load with pretrained wts')
 
@@ -64,15 +72,16 @@ args = parser.parse_args() # its easier for me to keep ti global.
 
 
 
-# INITS
+# INITS  *************************######
 torch.cuda.manual_seed(args.seed)
 cudnn.enabled = True
 cudnn.benchmark = True
 
-# prepare the save dirs
+# prepare the save dirs  *************************######
 args.save_root = os.path.join(args.save_root, args.id)
 os.makedirs(args.save_root, exist_ok=True)
-# loggers
+
+# loggers  *************************######
 log_format = '%(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=log_format)
 fh = logging.FileHandler(os.path.join(args.save_root, 'msnet.log'))
@@ -158,7 +167,11 @@ def main():
         depth=args.depth,
         block_name=args.block_name)
     model = model.cuda() # Trans. to GPU
-    print (model)
+
+    if (args.resume):
+        resume_ckpt = torch.load(args.checkpoint)
+        model.load_state_dict(resume_ckpt['net'])
+        logging.info(f"Resuming from checkpoint: {args.checkpoint}")
     # if pre-trained weight exists init.
     # wts_path = os.path.join(args.pretrained_wts, 'model_best.pth.tar')
     # pretrained_wts = torch.load(wts_path)
@@ -180,7 +193,7 @@ def main():
         weight_decay=1e-4)
     
     best_so_far = 0
-    for epoch in range(1, 500): 
+    for epoch in range(1, args.train_epochs):
         train(epoch, model, trldr, optimizer)
         adjust_learning_rate(epoch, optimizer)
         top1, top2 = test(model, tstldr)
