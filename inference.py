@@ -19,24 +19,20 @@ import models.cifar as models
 from utils.ms_net_utils import *
 from utils.data_utils import *
 
+from utils.basic_utils import count_parameters_in_MB
+from utils.basic_utils import load_pretrained_model
+from utils.basic_utils import AverageMeter, accuracy, transform_time
+from utils.basic_utils import is_subset, have_common_elements
 
 
 parser = argparse.ArgumentParser(description='Infernece scripts')
 
 
-#experiment tracker
+#inference args.
 parser.add_argument('--exp_id', default='exp_5', type=str, help='id of your current experiments')
-
-# Hyper-parameters
-parser.add_argument('--train-batch', default=128, type=int, metavar='N',
-                    help='train batchsize')
-parser.add_argument('--test-batch', default=128, type=int, metavar='N',
-                    help='test batchsize')
-
-parser.add_argument('--schedule', type=int, nargs='+', default=[60, 90],
-                        help='Decrease learning rate at these epochs.')
-
-parser.add_argument('--corrected_images', type=str, default='./corrected_images/')
+parser.add_argument('-name', '--data_name', default='cifar100', type=str)
+parser.add_argument('--topk', type=int, default=2, metavar='N',
+                    help='how many experts you want?')
 
 ###############################################################################
 
@@ -48,24 +44,13 @@ parser.add_argument('--seed', type=int, default=80, metavar='S',
 parser.add_argument('--log-interval', type=int, default=20, metavar='N',
                     help='how many batches to wait before logging training status')
 
-parser.add_argument('--evaluate_only_router', action='store_true',
-                    help='evaluate router on testing set')
-
-parser.add_argument('--weighted_sampler', action='store_true',
-                    help='what sampler you want?, subsetsampler or weighted')
-
-parser.add_argument('--finetune_experts', action='store_true', default=True,
-                    help='perform fine-tuning of layer few layers of experts')
-
-parser.add_argument('--save_images', action='store_true', default=True)
-
-###########################################################################
-parser.add_argument('--train_mode', action='store_true', default=True, help='Do you want to train or test?')
 
 
-parser.add_argument('--topk', type=int, default=100, metavar='N',
-                    help='how many experts you want?')
-###########################################################################
+# data loaders stuff.
+parser.add_argument('--train-batch', default=128, type=int, metavar='N',
+                    help='train batchsize')
+parser.add_argument('--test-batch', default=128, type=int, metavar='N',
+                    help='test batchsize')
 
 
 # Paths
@@ -133,7 +118,7 @@ def load_experts(num_classes, list_of_index=[None], pretrained=True):
         if (pretrained):
             chk_path = os.path.join("work_space", args.exp_id, args.checkpoint_path, loi + '.pth')
             chk = torch.load(chk_path)
-            experts[loi].load_state_dict(chk['net'])      
+            experts[loi].load_state_dict(chk['net'])
     
     return experts
 
@@ -159,6 +144,40 @@ def make_router(num_classes, ckpt_path=None):
         logging.info(f"Loading router from ckpt path: {ckpt_path}")
     
     return model
+
+
+
+def ensemble_inference(test_loader, experts, router):
+    
+    router.eval()
+    experts_on_stack = []
+    for k, v in experts.items():
+        experts[k].eval()
+        experts_on_stack.append(k)
+    
+    losses = AverageMeter()
+    top1   = AverageMeter()
+    top2   = AverageMeter()
+    for dta, target in test_loader:
+        dta, target = dta.cuda(), target.cuda()
+        list_of_experts = [] 
+        for exp in experts_on_stack:
+            list_of_experts.append(experts[exp])
+        with torch.no_grad():
+            all_outputs = [exp_(dta) for exp_ in list_of_experts]
+            output = router(dta)
+        all_outputs.append(output)
+        all_outputs_avg = average(all_outputs)
+        all_output_prob = F.softmax(all_outputs_avg)
+        loss = F.cross_entropy(all_output_prob, target).item() # sum up batch loss
+        prec1, prec2 = accuracy(all_output_prob, target, topk=(1,2))
+        losses.update(loss, dta.size(0))
+        top1.update(prec1.item(), dta.size(0))
+        top2.update(prec2.item(), dta.size(0))
+
+    f_l = [losses.avg, top1.avg, top2.avg]
+    logging.info('Loss: {:.4f}, Prec@1: {:.2f}, Prec@2: {:.2f}'.format(*f_l))
+    return top1.avg, top2.avg
 
 
 def inference_with_experts_and_routers(test_loader, experts, router, topk=2, temp_loader=None):
@@ -237,6 +256,7 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tem
 
 def main():
     _, _, test_loader_single, _, num_classes, list_of_classes = get_dataloader(
+        data_name=args.data_name,
         dataset_path=args.dataset_path,
         TRAIN_BATCH=args.train_batch, 
         TEST_BATCH=args.test_batch)
@@ -248,7 +268,7 @@ def main():
     split_f = lambda x: x.split(".")[0]
     lois = [split_f(index_) for index_ in list_of_experts]
     msnet = load_experts(num_classes, list_of_index=lois, pretrained=True)
-    inference_with_experts_and_routers(test_loader_single, msnet, router, topk=3)
+    inference_with_experts_and_routers(test_loader_single, msnet, router, topk=args.topk)
 
 
 if __name__ == '__main__':

@@ -100,7 +100,7 @@ def get_dataloader(
         _type_: _description_
     """
 
-    print('==> Preparing dataset from %s' % dataset_path)
+    print(f'==> Preparing dataset from {dataset_path} for {data_name}')
 
     # training dataset
     trainset = datasets.ImageFolder(

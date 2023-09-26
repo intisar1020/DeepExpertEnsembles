@@ -178,11 +178,6 @@ model = models.__dict__["preresnet"](
 model = torch.nn.DataParallel(model).cuda()
 
 
-
-
-
-
-
 chk = torch.load('./ck_backup/cifar-10/preresnet-depth-110/checkpoint/model_best.pth.tar')
 model.load_state_dict(chk['state_dict'])
 

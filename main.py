@@ -49,12 +49,12 @@ parser.add_argument('--exp_id', default='ti_exp1', type=str, help='id of your cu
 
 
 # Hyper-parameters
-parser.add_argument('--train-batch', default=128, type=int, metavar='N',
+parser.add_argument('--train_batch', default=256, type=int, metavar='N',
                     help='train batchsize')
-parser.add_argument('--test-batch', default=128, type=int, metavar='N',
+parser.add_argument('--test_batch', default=512, type=int, metavar='N',
                     help='test batchsize')
 
-parser.add_argument('--schedule', type=int, nargs='+', default=[60, 90],
+parser.add_argument('--schedule', type=int, nargs='+', default=[60, 120, 180],
                         help='Decrease learning rate at these epochs.')
 
 parser.add_argument('--corrected_images', type=str, default='./corrected_images/')
@@ -97,10 +97,12 @@ parser.add_argument('--train_mode', action='store_true', default=True, help='Do 
 
 parser.add_argument('--topk', type=int, default=100, metavar='N',
                     help='how many experts you want?')
+
+parser.add_argument('-co', '--cutoff', type=int, default=3, help='at what point you want to cutoff')
 ###########################################################################
 
 
-# Paths
+# checkpoint Paths
 parser.add_argument('-cp', '--checkpoint_path', default='checkpoint_experts', type=str, metavar='PATH',
                     help='path to save checkpoint (default: checkpoint_experts)')
 parser.add_argument('-router_cp', '--router_cp', default='work_space/pre-trained_wts/resnet20/run2/model_best.pth.tar', type=str, metavar='PATH',
@@ -108,8 +110,12 @@ parser.add_argument('-router_cp', '--router_cp', default='work_space/pre-trained
 parser.add_argument('-router_cp_icc', '--router_cp_icc', default='work_space/pre-trained_wts/resnet20_icc/model_best.pth.tar', type=str, metavar='PATH',
                     help='checkpoint path of the router weight for icc. We eval. router train on partial set of train data for ICC calculation.')
 
+
+# dataset paths
 parser.add_argument('-dp', '--dataset_path', default='/path/to/dataset', type=str)
 parser.add_argument('-save_log_path', '--save_log_path', default='./logs/', type=str)
+parser.add_argument('-name', '--data_name', default='cifar100', type=str)
+
 
 # Architecture details
 parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet',
@@ -156,91 +162,6 @@ if use_cuda:
     torch.cuda.manual_seed_all(args.manualSeed)
 
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
-
-
-
-# def inference_with_experts_and_routers(test_loader, experts, router, topk=2, temp_loader=None):
-#     """ function to perform evaluation with experts
-    
-#     Args:
-#         test_loader (_type_): _description_
-#         experts (_type_): _description_
-#         router (_type_): _description_
-#         topk (int, optional): _description_. Defaults to 2.
-#         temp_loader (_type_, optional): _description_. Defaults to None.
-#     """
-#     freqMat = np.zeros((100, 100)) # -- debug
-#     router.eval()
-#     experts_on_stack = []
-#     expert_count = {} 
-#     for k, v in experts.items():
-#         experts[k].eval()
-#         experts_on_stack.append(k)
-#         expert_count[k] = 0
-#         # test_expert(experts[k], temp_loader[k])
-#         # test_expert(router, temp_loader[k])
-
-#     count = 0
-#     ext_ = '.png'
-#     correct = 0
-#     by_experts = 0
-#     by_router = 0
-#     mistake_by_experts, mistake_by_router = 0, 0
-#     agree, disagree = 0, 0
-
-#     for dta, target in test_loader:
-#         count += 1
-#         dta, target = dta.cuda(), target.cuda()
-#         with torch.no_grad():
-#             output_raw = router(dta)
-#         output = F.softmax(output_raw, dim=1)
-#         router_confs, router_preds = torch.sort(output, dim=1, descending=True)
-#         preds = []
-#         confs = []
-#         for k in range(0, topk):
-#             #ref = torch.argsort(output, dim=1, descending=True)[0:, k]
-#             ref = router_preds[0:, k]
-#             conf = router_confs[0:, k]
-#             preds.append(ref.detach().cpu().numpy()[0]) # simply put the number. not the graph
-#             confs.append(conf.detach().cpu().numpy()[0])
-    
-#         experts_output = []
-     
-#         list_of_experts = []
-#         target_string = str(target.cpu().numpy()[0])
-#         for exp in experts_on_stack: #
-#             exp_cls = exp.split("_")
-#             for r_pred in preds:
-#                 if (str(r_pred) in exp_cls and exp not in list_of_experts):
-#                     list_of_experts.append(exp)
-#                     expert_count[exp] += 1
-#                     break
-            
-                    
-                    
-#         with torch.no_grad():
-#             experts_output = [experts[exp_](dta) for exp_ in list_of_experts]
-#         experts_output.append(output_raw)
-#         experts_output_avg = average(experts_output)
-#         exp_conf, exp_pred = torch.sort(experts_output_avg, dim=1, descending=True)
-#         #print (f"List of Experts: {list_of_experts}, Expert prediction: {exp_pred[0:, 0]}, router pred: {preds}, target: {target}")
-#         pred = exp_pred[0:, 0]
-
-#         if (pred.cpu().numpy()[0] == target.cpu().numpy()[0]):
-#             correct += 1
-#         if (preds[0] == target.cpu().numpy()[0]): #or preds[1] == target.cpu().numpy()[0]):
-#             by_router += 1
-            
-#        # mask_ = torch.zeros([1, 100])
-#         # mask_ = mask_.cuda()
-#         # mask_[0][preds[0]] = 1
-#         # mask_[0][preds[1]] = 1
-#         # experts_output_prob = F.softmax(experts_output_avg, dim=1)
-#         # pred = torch.argsort(experts_output_prob, dim=1, descending=True)[0:, 0]
-#         # experts_output_avg = experts_output_avg * mask_      
-       
-#     print (f"Expert dict: {expert_count}, MS-NET acc: {correct}, Router acc: {by_router}")
-
 
 
 def distillation(y, labels, teacher_scores, T, alpha):
@@ -522,10 +443,11 @@ def get_teacher_list(loi, teacher_lois):
 def main():
     
     _, test_loader_router, test_loader_single, val_loader_single, num_classes, list_of_classes = get_dataloader(
+        data_name=args.data_name,
         dataset_path=args.dataset_path,
         TRAIN_BATCH=args.train_batch, 
         TEST_BATCH=args.test_batch)
-
+    logging.info(f"Total number of classes {num_classes}")
     logging.info("==> creating standalone router model")
     router = make_router(num_classes, ckpt_path=args.router_cp)
 
@@ -546,7 +468,7 @@ def main():
     #########################################################################
     matrix = calculate_matrix(router_icc, val_loader_single, num_classes, only_top2=True)
     #####################################################################################
-    binary_list, super_list, dict_ = return_topk_args_from_heatmap(matrix, num_classes, cutoff_thresold=5, binary_=False)
+    binary_list, super_list, dict_ = return_topk_args_from_heatmap(matrix, num_classes, cutoff_thresold=args.cutoff, binary_=False)
 
     #####################################################################
     logging.info ("Calculating the heatmap for confusing class....")
@@ -556,7 +478,7 @@ def main():
     #####################################################################
 
     expert_train_dataloaders,  expert_test_dataloaders, lois = expert_dataloader(
-                data_name="cifar100",
+                data_name=args.data_name,
                 dataset_path=args.dataset_path,
                 matrix=super_list,
                 TRAIN_BATCH=args.train_batch, 
@@ -564,13 +486,13 @@ def main():
                 weighted_sampler=True)
 
 
-    _,  single_class_test_dataloaders, _ = expert_dataloader(
-                data_name="cifar100",
-                dataset_path=args.dataset_path,
-                matrix=[[i] for i in range(100)],
-                TRAIN_BATCH=args.train_batch, 
-                TEST_BATCH=1,
-                weighted_sampler=True) 
+    # _,  single_class_test_dataloaders, _ = expert_dataloader(
+    #             data_name=args.data_name,
+    #             dataset_path=args.dataset_path,
+    #             matrix=[[i] for i in range(100)],
+    #             TRAIN_BATCH=args.train_batch, 
+    #             TEST_BATCH=1,
+    #             weighted_sampler=True) 
     
 
     logging.info("Printing confusing classes .. ")
