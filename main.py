@@ -523,7 +523,7 @@ def main():
     teacher_msnet = load_experts(num_classes, list_of_index=teacher_lois, pretrained=False) # should set to true when using as teacher.
     
 
-    args.train_mode = True
+    args.train_mode = False
     # if (not args.train_mode):
     #     # index_list = os.listdir(os.path.join("work_space", args.exp_id, args.checkpoint_path))
     #     # split_f = lambda x: x.split(".")[0]

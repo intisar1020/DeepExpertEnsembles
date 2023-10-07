@@ -33,7 +33,7 @@ parser.add_argument('--exp_id', default='exp_5', type=str, help='id of your curr
 parser.add_argument('-name', '--data_name', default='cifar100', type=str)
 parser.add_argument('--topk', type=int, default=2, metavar='N',
                     help='how many experts you want?')
-
+parser.add_argument('--ensemble_inference', action='store_true', default=False, help='inference with all experts')
 ###############################################################################
 
 
@@ -116,7 +116,8 @@ def load_experts(num_classes, list_of_index=[None], pretrained=True):
 
         # we load pretrained weights for teacher networks.
         if (pretrained):
-            chk_path = os.path.join("work_space", args.exp_id, args.checkpoint_path, loi + '.pth')
+            chk_path = os.path.join("work_space", args.exp_id, args.checkpoint_path, loi + '.pth.tar')
+            print (chk_path)
             chk = torch.load(chk_path)
             experts[loi].load_state_dict(chk['net'])
     
@@ -148,7 +149,6 @@ def make_router(num_classes, ckpt_path=None):
 
 
 def ensemble_inference(test_loader, experts, router):
-    
     router.eval()
     experts_on_stack = []
     for k, v in experts.items():
@@ -158,7 +158,7 @@ def ensemble_inference(test_loader, experts, router):
     losses = AverageMeter()
     top1   = AverageMeter()
     top2   = AverageMeter()
-    for dta, target in test_loader:
+    for dta, target in tqdm(test_loader):
         dta, target = dta.cuda(), target.cuda()
         list_of_experts = [] 
         for exp in experts_on_stack:
@@ -167,8 +167,9 @@ def ensemble_inference(test_loader, experts, router):
             all_outputs = [exp_(dta) for exp_ in list_of_experts]
             output = router(dta)
         all_outputs.append(output)
+
         all_outputs_avg = average(all_outputs)
-        all_output_prob = F.softmax(all_outputs_avg)
+        all_output_prob = F.softmax(all_outputs_avg, dim=1)
         loss = F.cross_entropy(all_output_prob, target).item() # sum up batch loss
         prec1, prec2 = accuracy(all_output_prob, target, topk=(1,2))
         losses.update(loss, dta.size(0))
@@ -202,12 +203,9 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tem
         # test_expert(router, temp_loader[k])
 
     count = 0
-    ext_ = '.png'
+    avg_experts_usage = 0
     correct = 0
-    by_experts = 0
     by_router = 0
-    mistake_by_experts, mistake_by_router = 0, 0
-    agree, disagree = 0, 0
 
     for dta, target in tqdm(test_loader):
         count += 1
@@ -235,7 +233,8 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tem
                 if (str(r_pred) in exp_cls and exp not in list_of_experts):
                     list_of_experts.append(exp)
                     expert_count[exp] += 1
-                    #break
+                    avg_experts_usage += 1
+                    break
                     
         with torch.no_grad():
             experts_output = [experts[exp_](dta) for exp_ in list_of_experts]
@@ -252,10 +251,11 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tem
             
        
     print (f"Expert dict: {expert_count}, MS-NET acc: {correct}, Router acc: {by_router}")
+    print (f"Average exp. usage: {avg_experts_usage}")
 
 
 def main():
-    _, _, test_loader_single, _, num_classes, list_of_classes = get_dataloader(
+    _, test_loader_router, test_loader_single, _, num_classes, list_of_classes = get_dataloader(
         data_name=args.data_name,
         dataset_path=args.dataset_path,
         TRAIN_BATCH=args.train_batch, 
@@ -263,12 +263,14 @@ def main():
     
     logging.info("==> creating standalone router model")
     router = make_router(num_classes, ckpt_path=args.router_cp)
-
     list_of_experts = os.listdir(os.path.join("work_space", args.exp_id, "checkpoint_experts"))
     split_f = lambda x: x.split(".")[0]
     lois = [split_f(index_) for index_ in list_of_experts]
     msnet = load_experts(num_classes, list_of_index=lois, pretrained=True)
-    inference_with_experts_and_routers(test_loader_single, msnet, router, topk=args.topk)
+    if (args.ensemble_inference):
+        ensemble_inference(test_loader_router, msnet, router)
+    else:
+        inference_with_experts_and_routers(test_loader_single, msnet, router, topk=args.topk)
 
 
 if __name__ == '__main__':

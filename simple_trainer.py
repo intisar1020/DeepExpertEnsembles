@@ -43,7 +43,7 @@ parser.add_argument('-r', '--resume', action='store_true', default=False, help='
 parser.add_argument('-ckpt', '--checkpoint', default=None, help='checkpoint path')
 
 # learning rate, scheduler, momentum
-parser.add_argument('--schedule', type=int, nargs='+', default=[90, 180, 300, 400],
+parser.add_argument('--schedule', type=int, nargs='+', default=[60, 120, 180],
                         help='Decrease learning rate at these epochs.')
 parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                     help='learning rate (default: 0.01)')
