@@ -226,7 +226,7 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tem
         experts_output = []
      
         list_of_experts = []
-        ##target_string = str(target.cpu().numpy()[0])
+        #target_string = str(target.cpu().numpy()[0]) --> to verfiy
         for exp in experts_on_stack: #
             exp_cls = exp.split("_")
             for r_pred in preds:
