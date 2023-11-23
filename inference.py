@@ -1,4 +1,6 @@
 # System
+from email import header
+from enum import auto
 from pickle import TRUE
 import random
 import copy
@@ -116,7 +118,7 @@ def load_experts(num_classes, list_of_index=[None], pretrained=True):
 
         # we load pretrained weights for teacher networks.
         if (pretrained):
-            chk_path = os.path.join("work_space", args.exp_id, args.checkpoint_path, loi + '.pth.tar')
+            chk_path = os.path.join("workspace", args.data_name, args.exp_id, args.checkpoint_path, loi + '.pth')
             print (chk_path)
             chk = torch.load(chk_path)
             experts[loi].load_state_dict(chk['net'])
@@ -255,6 +257,7 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tem
 
 
 def main():
+    """run simple inference """
     _, test_loader_router, test_loader_single, _, num_classes, list_of_classes = get_dataloader(
         data_name=args.data_name,
         dataset_path=args.dataset_path,
@@ -263,9 +266,10 @@ def main():
     
     logging.info("==> creating standalone router model")
     router = make_router(num_classes, ckpt_path=args.router_cp)
-    list_of_experts = os.listdir(os.path.join("work_space", args.exp_id, "checkpoint_experts"))
+    list_of_experts = os.listdir(os.path.join("workspace", args.data_name, args.exp_id, "checkpoint_experts"))
     split_f = lambda x: x.split(".")[0]
     lois = [split_f(index_) for index_ in list_of_experts]
+    print (lois)
     msnet = load_experts(num_classes, list_of_index=lois, pretrained=True)
     if (args.ensemble_inference):
         ensemble_inference(test_loader_router, msnet, router)
