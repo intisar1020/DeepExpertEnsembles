@@ -23,10 +23,16 @@ from utils.basic_utils import count_parameters_in_MB
 from utils.basic_utils import load_pretrained_model
 from utils.basic_utils import AverageMeter, accuracy, transform_time
 
+# stocashtic weighted average
+from torch.optim.swa_utils import AveragedModel
+
+
+
+
 parser = argparse.ArgumentParser(description='Stable MS-NET')
 
 # save dirs:
-parser.add_argument('--save_root', type=str, default='work_space', help='models and logs are saved here')
+parser.add_argument('--save_root', type=str, default='workspace', help='models and logs are saved here')
 parser.add_argument('--id', type=str, default='ti_resnet20_router', help='experiment IDS')
 
 
@@ -89,7 +95,7 @@ fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
 
 
-def train(epoch, model, train_loader, optimizer):
+def train(epoch, model, swa_model, train_loader, optimizer):
     ''' one epoch trainer '''
     batch_time = AverageMeter()
     data_time  = AverageMeter()
@@ -114,7 +120,7 @@ def train(epoch, model, train_loader, optimizer):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
+        swa_model.update_parameters(model)
         batch_time.update(time.time() - end)
         end = time.time()
         
@@ -154,6 +160,12 @@ def test(model, test_loader):
 
 
 def adjust_learning_rate(epoch, optimizer):
+    """_summary_
+
+    Args:
+        epoch (int): _description_
+        optimizer (_type_): _description_
+    """
     if epoch in args.schedule:
         print ("REDUCING LEARNING RATE")
         for param_group in optimizer.param_groups:
@@ -167,6 +179,8 @@ def main():
         depth=args.depth,
         block_name=args.block_name)
     model = model.cuda() # Trans. to GPU
+    ema_avg = lambda averaged_model_parameter, model_parameter, num_averaged: 0.999 * averaged_model_parameter + 0.1 * model_parameter
+    swa_model = AveragedModel(model, avg_fn=ema_avg)
 
     if (args.resume):
         resume_ckpt = torch.load(args.checkpoint)
@@ -194,7 +208,10 @@ def main():
     
     best_so_far = 0
     for epoch in range(1, args.train_epochs):
-        train(epoch, model, trldr, optimizer)
+        train(epoch, model, swa_model, trldr, optimizer)
+        swa_model.cpu()
+        #torch.optim.swa_utils.update_bn(trldr, swa_model)
+        #swa_model.cuda()
         adjust_learning_rate(epoch, optimizer)
         top1, top2 = test(model, tstldr)
         is_best = False
@@ -206,21 +223,22 @@ def main():
             logging.info(f"Saving checkpoint from epoch: {epoch}")
             save_path = os.path.join(args.save_root, f'checkpoint_{epoch}.pth.tar')
             torch.save({
-            'epoch': epoch,
-            'net': model.state_dict(),
-            'prec@1': top1,
-            'prec@2': top2,
-            }, save_path)
+                'epoch': epoch,
+                'net': model.state_dict(),
+                'prec1': top1,
+                'prec2': top2,
+                }, save_path
+                )
 
         if (is_best):
             logging.info('Founds the best model, saving ......')
             save_path = os.path.join(args.save_root, 'model_best.pth.tar')
             torch.save({
-            'epoch': epoch,
-            'net': model.state_dict(),
-            'prec@1': top1,
-            'prec@2': top2,
-            }, save_path)
+                'epoch': epoch,
+                'net': model.state_dict(),
+                'prec1': top1,
+                'prec2': top2,
+                }, save_path)
 
 
 if __name__ == '__main__':
