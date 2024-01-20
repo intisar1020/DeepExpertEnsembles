@@ -2,6 +2,7 @@
 from email import header
 from enum import auto
 from pickle import TRUE
+from pydoc import visiblename
 import random
 import copy
 import argparse
@@ -10,7 +11,7 @@ from re import split
 import sys
 import logging
 import time
-
+import math
 # progress bar
 from tqdm import tqdm
 
@@ -31,7 +32,7 @@ parser = argparse.ArgumentParser(description='Infernece scripts')
 
 
 #inference args.
-parser.add_argument('--exp_id', default='exp_5', type=str, help='id of your current experiments')
+parser.add_argument('--exp_id', default='exp6', type=str, help='id of your current experiments')
 parser.add_argument('-name', '--data_name', default='cifar100', type=str)
 parser.add_argument('--topk', type=int, default=2, metavar='N',
                     help='how many experts you want?')
@@ -118,10 +119,15 @@ def load_experts(num_classes, list_of_index=[None], pretrained=True):
 
         # we load pretrained weights for teacher networks.
         if (pretrained):
-            chk_path = os.path.join("workspace", args.data_name, args.exp_id, args.checkpoint_path, loi + '.pth')
-            print (chk_path)
-            chk = torch.load(chk_path)
-            experts[loi].load_state_dict(chk['net'])
+            try:
+                chk_path = os.path.join("workspace", args.data_name, args.exp_id, args.checkpoint_path, loi + '.pth')
+                #chk_path = os.path.join("workspace", args.data_name, args.exp_id, args.checkpoint_path, loi + '.pth.tar')
+                
+                chk = torch.load(chk_path)
+                experts[loi].load_state_dict(chk['net'])
+            except Exception as e:
+                error_str = f"Load error for expert {loi}"
+                logging.info(error_str)
     
     return experts
 
@@ -147,7 +153,6 @@ def make_router(num_classes, ckpt_path=None):
         logging.info(f"Loading router from ckpt path: {ckpt_path}")
     
     return model
-
 
 
 def ensemble_inference(test_loader, experts, router):
@@ -228,19 +233,21 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tem
         experts_output = []
      
         list_of_experts = []
+        visited = {str(cls_): 0 for cls_ in range(0, 100+1)}
         #target_string = str(target.cpu().numpy()[0]) --> to verfiy
         for exp in experts_on_stack: #
             exp_cls = exp.split("_")
             for r_pred in preds:
-                if (str(r_pred) in exp_cls and exp not in list_of_experts):
+                if (str(r_pred) in exp_cls and exp not in list_of_experts):# and not visited[str(r_pred)]):
                     list_of_experts.append(exp)
                     expert_count[exp] += 1
                     avg_experts_usage += 1
-                    break
+                    visited[str(r_pred)] = 1
+                    #break
                     
         with torch.no_grad():
             experts_output = [experts[exp_](dta) for exp_ in list_of_experts]
-        experts_output.append(output_raw)
+        experts_output.append(output_raw) # (1 + math.e**(-1/len(exp_.split("_"))))
         experts_output_avg = average(experts_output)
         exp_conf, exp_pred = torch.sort(experts_output_avg, dim=1, descending=True)
         #print (f"List of Experts: {list_of_experts}, Expert prediction: {exp_pred[0:, 0]}, router pred: {preds}, target: {target}")
@@ -252,8 +259,9 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tem
             by_router += 1
             
        
-    print (f"Expert dict: {expert_count}, MS-NET acc: {correct}, Router acc: {by_router}")
-    print (f"Average exp. usage: {avg_experts_usage}")
+    print (f"** Expert dict: {expert_count}")
+    print (f"** MS-NET acc: {correct} \n, ** Router acc: {by_router} \n")
+    print (f"** Average exp. usage: {avg_experts_usage/10000}")
 
 
 def main():
@@ -261,7 +269,7 @@ def main():
     _, test_loader_router, test_loader_single, _, num_classes, list_of_classes = get_dataloader(
         data_name=args.data_name,
         dataset_path=args.dataset_path,
-        TRAIN_BATCH=args.train_batch, 
+        TRAIN_BATCH=args.train_batch,
         TEST_BATCH=args.test_batch)
     
     logging.info("==> creating standalone router model")
@@ -269,7 +277,13 @@ def main():
     list_of_experts = os.listdir(os.path.join("workspace", args.data_name, args.exp_id, "checkpoint_experts"))
     split_f = lambda x: x.split(".")[0]
     lois = [split_f(index_) for index_ in list_of_experts]
-    print (lois)
+    class_count_dict = {str(cls): 0 for cls in range(0, 201)}
+    # for loi in lois:
+    #     expert_cls = loi.split("_")
+    #     for cls in expert_cls:
+    #         class_count_dict[cls] += 1
+    # class_count_dict = {k:v for k, v in class_count_dict.items() if v > 0}
+    # print (len(class_count_dict))
     msnet = load_experts(num_classes, list_of_index=lois, pretrained=True)
     if (args.ensemble_inference):
         ensemble_inference(test_loader_router, msnet, router)

@@ -1,5 +1,6 @@
 from ast import mod
 from configparser import NoOptionError
+from email.policy import strict
 import os
 import sys
 import argparse
@@ -41,16 +42,19 @@ parser.add_argument('--train-batch', default=128, type=int, metavar='N',
                     help='train batchsize')
 parser.add_argument('--test-batch', default=128, type=int, metavar='N',
                     help='test batchsize')
-parser.add_argument('--train_epochs', default=400, type=int, help='total number of training epochs')
+parser.add_argument('--train_epochs', default=300, type=int, help='total number of training epochs')
 
 
 # pre-trained wts, resume
 parser.add_argument('-r', '--resume', action='store_true', default=False, help='resume from latest checkpoint')
 parser.add_argument('-ckpt', '--checkpoint', default=None, help='checkpoint path')
+parser.add_argument('--eval_only', action='store_true')
 
 # learning rate, scheduler, momentum
-parser.add_argument('--schedule', type=int, nargs='+', default=[60, 120, 180],
+parser.add_argument('--schedule', type=int, nargs='+', default=[90, 150, 200],
                         help='Decrease learning rate at these epochs.')
+parser.add_argument('--swa_from', type=int, default=200,
+                    help='start swa from which epoch')
 parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                     help='learning rate (default: 0.01)')
 parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
@@ -120,7 +124,9 @@ def train(epoch, model, swa_model, train_loader, optimizer):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        swa_model.update_parameters(model)
+        if (epoch > args.swa_from):
+           swa_model.update_parameters(model)
+     
         batch_time.update(time.time() - end)
         end = time.time()
         
@@ -175,7 +181,7 @@ def adjust_learning_rate(epoch, optimizer):
 def main():
     # Prepare the main model.
     model = models.__dict__[args.arch](
-        num_classes=200,
+        num_classes=100,
         depth=args.depth,
         block_name=args.block_name)
     model = model.cuda() # Trans. to GPU
@@ -199,7 +205,15 @@ def main():
         dataset_path=args.dataset, 
         TRAIN_BATCH=128, 
         TEST_BATCH=256)
-    
+
+
+    if (args.eval_only):
+        ckpt = torch.load(args.checkpoint)
+        ckpt = {k.replace("module.", ""): v for k,v in ckpt['state_dict'].items()}
+        model.load_state_dict(ckpt, strict=False)
+        test(model, tstldr)
+        return 
+
     optimizer = optim.SGD(
         model.parameters(), 
         lr=args.lr, 
@@ -209,9 +223,6 @@ def main():
     best_so_far = 0
     for epoch in range(1, args.train_epochs):
         train(epoch, model, swa_model, trldr, optimizer)
-        swa_model.cpu()
-        #torch.optim.swa_utils.update_bn(trldr, swa_model)
-        #swa_model.cuda()
         adjust_learning_rate(epoch, optimizer)
         top1, top2 = test(model, tstldr)
         is_best = False
@@ -235,10 +246,18 @@ def main():
             save_path = os.path.join(args.save_root, 'model_best.pth.tar')
             torch.save({
                 'epoch': epoch,
-                'net': model.state_dict(),
+                'state_dict': model.state_dict(),
                 'prec1': top1,
                 'prec2': top2,
                 }, save_path)
+            
+    swa_model.cpu()
+    torch.optim.swa_utils.update_bn(trldr, swa_model)
+    swa_model.cuda()
+    swa_save_path = os.path.join(args.save_root, 'model_swa.pth.tar')
+    torch.save({
+        'net': swa_model.state_dict(),
+        }, swa_save_path)
 
 
 if __name__ == '__main__':

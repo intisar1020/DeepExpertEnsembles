@@ -1,4 +1,5 @@
 # System
+from ast import arg
 from pickle import TRUE
 import random
 import copy
@@ -45,22 +46,22 @@ from kd_losses import *
 parser = argparse.ArgumentParser(description='Stable MS-NET')
 
 #experiment tracker
-parser.add_argument('--exp_id', default='ti_exp1', type=str, help='id of your current experiments')
+parser.add_argument('--exp_id', default='exp7', type=str, help='id of your current experiments')
 
 
 # Hyper-parameters
-parser.add_argument('--train_batch', default=256, type=int, metavar='N',
+parser.add_argument('--train_batch', default=128, type=int, metavar='N',
                     help='train batchsize')
-parser.add_argument('--test_batch', default=512, type=int, metavar='N',
+parser.add_argument('--test_batch', default=128, type=int, metavar='N',
                     help='test batchsize')
 
-parser.add_argument('--schedule', type=int, nargs='+', default=[60, 120, 180],
+parser.add_argument('--schedule', type=int, nargs='+', default=[60, 100, 120],
                         help='Decrease learning rate at these epochs.')
 
 parser.add_argument('--corrected_images', type=str, default='./corrected_images/')
 
 ###############################################################################
-parser.add_argument('--expert_train_epochs', type=int, default=120, metavar='N',
+parser.add_argument('--expert_train_epochs', type=int, default=180, metavar='N',
                     help='number of epochs to train experts')
 ##########################################################################
 
@@ -105,9 +106,9 @@ parser.add_argument('-co', '--cutoff', type=int, default=3, help='at what point 
 # checkpoint Paths
 parser.add_argument('-cp', '--checkpoint_path', default='checkpoint_experts', type=str, metavar='PATH',
                     help='path to save checkpoint (default: checkpoint_experts)')
-parser.add_argument('-router_cp', '--router_cp', default='work_space/pre-trained_wts/resnet20/run2/model_best.pth.tar', type=str, metavar='PATH',
+parser.add_argument('-router_cp', '--router_cp', default='workspace/pre-trained_wts/resnet20/run2/model_best.pth.tar', type=str, metavar='PATH',
                     help='checkpoint path of the router weight')
-parser.add_argument('-router_cp_icc', '--router_cp_icc', default='work_space/pre-trained_wts/resnet20_icc/model_best.pth.tar', type=str, metavar='PATH',
+parser.add_argument('-router_cp_icc', '--router_cp_icc', default='workspace/pre-trained_wts/resnet20_icc/model_best.pth.tar', type=str, metavar='PATH',
                     help='checkpoint path of the router weight for icc. We eval. router train on partial set of train data for ICC calculation.')
 
 
@@ -179,7 +180,7 @@ def train(epoch, model, teacher, train_loader, optimizer):
     top2       = AverageMeter()
     model.train()
     end = time.time()
-    criterion_ce = nn.CrossEntropyLoss()
+    criterion_ce = nn.CrossEntropyLoss(label_smoothing=0.1)
     for i, (dta, target) in enumerate(train_loader, start=1):
         dta, target = dta.cuda(), target.cuda()
         output = model(dta) # infer, forward prop.
@@ -359,9 +360,11 @@ def load_experts(num_classes, list_of_index=[None], pretrained=True):
 
         # we load pretrained weights for teacher networks.
         if (pretrained):
-            chk_path = os.path.join("work_space", 'superset_100', args.checkpoint_path, loi + '.pth')
+            chk_path = args.router_cp
+            #chk_path = os.path.join("work_space", 'superset_100', args.checkpoint_path, loi + '.pth')
             chk = torch.load(chk_path)
-            experts[loi].load_state_dict(chk['net'])      
+            experts[loi].load_state_dict(chk['net'])
+            logging.info("Expert loaded with router weights")      
     
     return experts
 
@@ -376,7 +379,7 @@ def load_teacher_network():
         dropRate=0,
         )
     teacher = torch.nn.DataParallel(teacher).cuda()
-    checkpoint = torch.load("work_space/pre-trained_wts/resnext/model_best.pth.tar")
+    checkpoint = torch.load("workspace/pre-trained_wts/resnext/model_best.pth.tar")
     teacher.load_state_dict(checkpoint['state_dict'])
     return teacher
 
@@ -402,6 +405,7 @@ def ensemble_inference(test_loader, experts, router):
         list_of_experts = [] 
         for exp in experts_on_stack:
             list_of_experts.append(experts[exp])
+
         with torch.no_grad():
             all_outputs = [exp_(dta) for exp_ in list_of_experts]
             output = router(dta)
@@ -501,7 +505,7 @@ def main():
     # In the following  we first list the names of all the pre-trained super-set experts.
     # These pretrained experts will serve as good teacher network. We will use ensemble of 
     # them for the training individual experts. So we first list all the index names 
-    index_list = os.listdir(os.path.join("work_space", "superset_100", args.checkpoint_path))
+    index_list = os.listdir(os.path.join("workspace", "superset_100", args.checkpoint_path))
     split_f = lambda x: x.split(".")[0]
     teacher_lois = [split_f(index_) for index_ in index_list]
     
@@ -517,13 +521,13 @@ def main():
         logging.info(f"Numeric index: {loi}, Named index: {name_str}")
     logging.info(f"Number of supersets: {len(super_list)}")
   
-    #lois = lois[31:] #+ lois[-3:]
+    # lois = lois[0:45] #+ lois[-3:] # training rest of experts.
   
     msnet = load_experts(num_classes, list_of_index=lois, pretrained=False) # pool of de-coupled expoert networks.
     teacher_msnet = load_experts(num_classes, list_of_index=teacher_lois, pretrained=False) # should set to true when using as teacher.
     
 
-    args.train_mode = False
+    args.train_mode = True
     # if (not args.train_mode):
     #     # index_list = os.listdir(os.path.join("work_space", args.exp_id, args.checkpoint_path))
     #     # split_f = lambda x: x.split(".")[0]
@@ -545,7 +549,7 @@ def main():
 
     if (args.train_mode):
         for loi in lois:
-            optimizer = optim.SGD(msnet[loi].parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
+            optimizer = optim.SGD(msnet[loi].parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
             best_so_far = 0.0
             # teacher_supersets = get_teacher_list(loi, teacher_lois)
             # if (not len(teacher_supersets)):
@@ -565,7 +569,7 @@ def main():
 
                 if (is_best):
                     logging.info(f'Founds the best model for {loi}, saving ......')
-                    base_path = os.path.join("work_space", args.exp_id, args.checkpoint_path)
+                    base_path = os.path.join("workspace", args.exp_id, args.checkpoint_path)
                     os.makedirs(base_path, exist_ok=True)
                     save_path = os.path.join(base_path, f'{loi}.pth')
                     torch.save({
