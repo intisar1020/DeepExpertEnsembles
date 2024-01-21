@@ -47,6 +47,7 @@ parser = argparse.ArgumentParser(description='Stable MS-NET')
 
 #experiment tracker
 parser.add_argument('--exp_id', default='exp7', type=str, help='id of your current experiments')
+parser.add_argument('--teacher_exp_id', default='exp7', type=str, help='id of your current experiments')
 
 
 # Hyper-parameters
@@ -162,6 +163,7 @@ torch.manual_seed(args.manualSeed)
 if use_cuda:
     torch.cuda.manual_seed_all(args.manualSeed)
 
+
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
 
@@ -228,8 +230,8 @@ def train_distilled_ensemble(epoch, model, teacher_msnet, teacher_list, train_lo
     top2       = AverageMeter()
     model.train()
     end = time.time()
-    #criterion = SoftTarget(T=2)
-    criterion = Logits()
+    criterion = SoftTarget(T=2)
+    # criterion = Logits()
     criterion_ce = nn.CrossEntropyLoss()
     lambda_ = 0.5
     for i, (dta, target) in enumerate(train_loader, start=1):
@@ -339,7 +341,7 @@ def make_router(num_classes, ckpt_path=None):
     return model
 
 
-def load_experts(num_classes, list_of_index=[None], pretrained=True):
+def load_experts(num_classes, list_of_index=[None], pretrained=True, teacher=False):
     """returns dictionary of expert network, where number of experts equal number of elements in the list_of_index
 
     Args:
@@ -360,8 +362,11 @@ def load_experts(num_classes, list_of_index=[None], pretrained=True):
 
         # we load pretrained weights for teacher networks.
         if (pretrained):
-            chk_path = args.router_cp
-            #chk_path = os.path.join("work_space", 'superset_100', args.checkpoint_path, loi + '.pth')
+            #chk_path = args.router_cp
+            if (teacher):
+                chk_path = os.path.join("workspace", args.data_name, args.teacher_exp_id, args.checkpoint_path, f'{loi}.pth')
+            else:
+                chk_path = args.router_cp
             chk = torch.load(chk_path)
             experts[loi].load_state_dict(chk['net'])
             logging.info("Expert loaded with router weights")      
@@ -402,7 +407,7 @@ def ensemble_inference(test_loader, experts, router):
     top2   = AverageMeter()
     for dta, target in test_loader:
         dta, target = dta.cuda(), target.cuda()
-        list_of_experts = [] 
+        list_of_experts = []
         for exp in experts_on_stack:
             list_of_experts.append(experts[exp])
 
@@ -496,16 +501,15 @@ def main():
     #             matrix=[[i] for i in range(100)],
     #             TRAIN_BATCH=args.train_batch, 
     #             TEST_BATCH=1,
-    #             weighted_sampler=True) 
+    #             weighted_sampler=True)
     
-
     logging.info("Printing confusing classes .. ")
     lois_named = {}
 
     # In the following  we first list the names of all the pre-trained super-set experts.
     # These pretrained experts will serve as good teacher network. We will use ensemble of 
     # them for the training individual experts. So we first list all the index names 
-    index_list = os.listdir(os.path.join("workspace", "superset_100", args.checkpoint_path))
+    index_list = os.listdir(os.path.join("workspace", args.data_name, args.teacher_exp_id, args.checkpoint_path))
     split_f = lambda x: x.split(".")[0]
     teacher_lois = [split_f(index_) for index_ in index_list]
     
@@ -522,9 +526,8 @@ def main():
     logging.info(f"Number of supersets: {len(super_list)}")
   
     # lois = lois[0:45] #+ lois[-3:] # training rest of experts.
-  
-    msnet = load_experts(num_classes, list_of_index=lois, pretrained=False) # pool of de-coupled expoert networks.
-    teacher_msnet = load_experts(num_classes, list_of_index=teacher_lois, pretrained=False) # should set to true when using as teacher.
+    msnet = load_experts(num_classes, list_of_index=lois, pretrained=False, teacher=False) # pool of de-coupled expoert networks.
+    teacher_msnet = load_experts(num_classes, list_of_index=teacher_lois, pretrained=True, teacher=True) # should set to true when using as teacher.
     
 
     args.train_mode = True
@@ -551,14 +554,19 @@ def main():
         for loi in lois:
             optimizer = optim.SGD(msnet[loi].parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
             best_so_far = 0.0
-            # teacher_supersets = get_teacher_list(loi, teacher_lois)
-            # if (not len(teacher_supersets)):
-            #     teacher_supersets = random.choices(teacher_lois, k=5)
-            # logging.info("Teachers for distill: ", teacher_supersets)
+            teacher_supersets = get_teacher_list(loi, teacher_lois)
+            if (not len(teacher_supersets)): #  if we dont get suitable teacher model.
+                teacher_supersets = random.choices(teacher_lois, k=3) # randomly choose 3 teacher experts.
+            else:
+                teacher_supersets = random.choices(teacher_supersets, k=3)
+
+            str_ = f"Teachers for distillation: {teacher_supersets}"
+            logging.info(f)
+    
             for epoch in range(1, args.expert_train_epochs):
                 adjust_learning_rate(epoch, optimizer)
-                train(epoch, msnet[loi], teacher, expert_train_dataloaders[loi], optimizer)
-                #train_distilled_ensemble(epoch, msnet[loi], teacher_msnet, teacher_supersets, expert_train_dataloaders[loi], optimizer)
+                # train(epoch, msnet[loi], teacher, expert_train_dataloaders[loi], optimizer)
+                train_distilled_ensemble(epoch, msnet[loi], teacher_msnet, teacher_supersets, expert_train_dataloaders[loi], optimizer)
                 t1, t2 = test_expert(msnet[loi], expert_test_dataloaders[loi])
                 t1_all, t2 = test_expert(msnet[loi], test_loader_router)
                 

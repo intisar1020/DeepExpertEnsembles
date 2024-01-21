@@ -196,8 +196,7 @@ def expert_dataloader(
         for sub in matrix: # for each confusing class pair
             weight = class_sample_count / class_sample_count
             for sb in sub:
-                weight[sb] *= 3.5 # all exp done with 2
-            print (weight)
+                weight[sb] *= 2 # all exp done with 2
             samples_weight = np.array([weight[t] for t in train_set.targets])
             samples_weight = torch.from_numpy(samples_weight)
             sampler_ = WeightedRandomSampler(samples_weight, len(samples_weight))
