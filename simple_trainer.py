@@ -5,6 +5,7 @@ import os
 import sys
 import argparse
 import logging
+from tabnanny import verbose
 import time
 
 # torch
@@ -42,7 +43,7 @@ parser.add_argument('--train-batch', default=128, type=int, metavar='N',
                     help='train batchsize')
 parser.add_argument('--test-batch', default=128, type=int, metavar='N',
                     help='test batchsize')
-parser.add_argument('--train_epochs', default=300, type=int, help='total number of training epochs')
+parser.add_argument('--train_epochs', default=80, type=int, help='total number of training epochs')
 
 
 # pre-trained wts, resume
@@ -51,7 +52,7 @@ parser.add_argument('-ckpt', '--checkpoint', default=None, help='checkpoint path
 parser.add_argument('--eval_only', action='store_true')
 
 # learning rate, scheduler, momentum
-parser.add_argument('--schedule', type=int, nargs='+', default=[90, 150, 200],
+parser.add_argument('--schedule', type=int, nargs='+', default=[100, 200, 280],
                         help='Decrease learning rate at these epochs.')
 parser.add_argument('--swa_from', type=int, default=200,
                     help='start swa from which epoch')
@@ -124,8 +125,8 @@ def train(epoch, model, swa_model, train_loader, optimizer):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        if (epoch > args.swa_from):
-           swa_model.update_parameters(model)
+        # if (epoch > args.swa_from):
+        #    swa_model.update_parameters(model)
      
         batch_time.update(time.time() - end)
         end = time.time()
@@ -179,14 +180,24 @@ def adjust_learning_rate(epoch, optimizer):
 
 
 def main():
+    
+    # Prepare dataloader. 
+    #train_loader, test_loader, test_loader_single, val_loader_single, num_classes, list_of_classes
+    trldr, tstldr, _, _, nc_, _ = get_dataloader(
+        data_name=args.data_name,
+        dataset_path=args.dataset, 
+        TRAIN_BATCH=256, 
+        TEST_BATCH=256)
+
     # Prepare the main model.
     model = models.__dict__[args.arch](
-        num_classes=100,
+        num_classes=nc_,
         depth=args.depth,
         block_name=args.block_name)
     model = model.cuda() # Trans. to GPU
     ema_avg = lambda averaged_model_parameter, model_parameter, num_averaged: 0.999 * averaged_model_parameter + 0.1 * model_parameter
     swa_model = AveragedModel(model, avg_fn=ema_avg)
+
 
     if (args.resume):
         resume_ckpt = torch.load(args.checkpoint)
@@ -198,15 +209,6 @@ def main():
     # load_pretrained_model(model, pretrained_wts['net'])
     logging.info('Student param size = %fMB', count_parameters_in_MB(model))
     
-    # Prepare dataloader. 
-    #train_loader, test_loader, test_loader_single, val_loader_single, num_classes, list_of_classes
-    trldr, tstldr, _, _, _, _ = get_dataloader(
-        data_name=args.data_name,
-        dataset_path=args.dataset, 
-        TRAIN_BATCH=128, 
-        TEST_BATCH=256)
-
-
     if (args.eval_only):
         ckpt = torch.load(args.checkpoint)
         ckpt = {k.replace("module.", ""): v for k,v in ckpt['state_dict'].items()}
@@ -219,11 +221,13 @@ def main():
         lr=args.lr, 
         momentum=0.9,
         weight_decay=1e-4)
+    cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=20, eta_min=0.0001, verbose=True)
     
     best_so_far = 0
     for epoch in range(1, args.train_epochs):
         train(epoch, model, swa_model, trldr, optimizer)
-        adjust_learning_rate(epoch, optimizer)
+        #adjust_learning_rate(epoch, optimizer)
+        cosine_scheduler.step()
         top1, top2 = test(model, tstldr)
         is_best = False
         if top1 > best_so_far:
@@ -235,7 +239,7 @@ def main():
             save_path = os.path.join(args.save_root, f'checkpoint_{epoch}.pth.tar')
             torch.save({
                 'epoch': epoch,
-                'net': model.state_dict(),
+                'state_dict': model.state_dict(),
                 'prec1': top1,
                 'prec2': top2,
                 }, save_path
@@ -251,13 +255,13 @@ def main():
                 'prec2': top2,
                 }, save_path)
             
-    swa_model.cpu()
-    torch.optim.swa_utils.update_bn(trldr, swa_model)
-    swa_model.cuda()
-    swa_save_path = os.path.join(args.save_root, 'model_swa.pth.tar')
-    torch.save({
-        'net': swa_model.state_dict(),
-        }, swa_save_path)
+    # swa_model.cpu()
+    # torch.optim.swa_utils.update_bn(trldr, swa_model)
+    # swa_model.cuda()
+    # swa_save_path = os.path.join(args.save_root, 'model_swa.pth.tar')
+    # torch.save({
+    #     'net': swa_model.state_dict(),
+    #     }, swa_save_path)
 
 
 if __name__ == '__main__':

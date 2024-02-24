@@ -11,7 +11,7 @@ import torchvision.datasets as datasets
 from torch.utils.data import DataLoader
 
 
-def get_train_transforms(data_name="cifar100"):
+def get_train_transforms(data_name="none"):
     """_summary_
 
     Args:
@@ -21,9 +21,9 @@ def get_train_transforms(data_name="cifar100"):
         _type_: _description_
     """
 
-    transform_train = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),])  
+    # transform_train = transforms.Compose([
+    #     transforms.ToTensor(),
+    #     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),])  
     
     if ("cifar" in data_name):
         transform_train = transforms.Compose([
@@ -42,6 +42,17 @@ def get_train_transforms(data_name="cifar100"):
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
             transforms.RandomErasing(probability = 0.5, sh = 0.4, r1 = 0.3, ),])
+         
+    if ("pets" in data_name):
+        print ("pets")
+        transform_train = transforms.Compose([
+            transforms.Resize((64, 64)),
+            transforms.RandomCrop(64, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandAugment(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            transforms.RandomErasing(probability = 0.5, sh = 0.4, r1 = 0.3, ),])
 
 
     if ("mnist" in data_name):
@@ -51,8 +62,12 @@ def get_train_transforms(data_name="cifar100"):
             transforms.ToTensor(),
             transforms.Normalize((0.1307,), (0.3081,)),
             ])
-  
-
+    else:
+        print (" *************** -- returning default transforms -- ***************")
+        transform_train = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),])  
+    
     return transform_train
     
 
@@ -74,7 +89,14 @@ def get_test_transforms(data_name="cifar100"):
         transform_test = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),])
-    
+        
+    if ("pets" in data_name): # we downsample pets dataset for tractable training and experiments (GPU POOR :( ))
+        transform_test = transforms.Compose([
+            transforms.Resize((64, 64)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),])
+
+
     if ("mnist" in data_name):
         transform_test = transforms.Compose([
             transforms.ToTensor(),
@@ -133,7 +155,8 @@ def expert_dataloader(
         matrix=[], 
         TRAIN_BATCH=128, 
         TEST_BATCH=128,
-        weighted_sampler=True):
+        weighted_sampler=True,
+        p_beta = 2):
     """_summary_
 
     Args:
@@ -193,10 +216,11 @@ def expert_dataloader(
  
     if (weighted_sampler):
         print ("***************Preparing weighted Sampler ********************************")
+        print (f"Probability P(x=1) == {p_beta}")
         for sub in matrix: # for each confusing class pair
             weight = class_sample_count / class_sample_count
             for sb in sub:
-                weight[sb] *= 2 # all exp done with 2
+                weight[sb] *= p_beta # all exp done with 2
             samples_weight = np.array([weight[t] for t in train_set.targets])
             samples_weight = torch.from_numpy(samples_weight)
             sampler_ = WeightedRandomSampler(samples_weight, len(samples_weight))
@@ -225,6 +249,7 @@ def expert_dataloader(
  
     # if subsetRandomSampler
     else:
+        print ("***************Preparing Subset Sampler ********************************")
         for sub in matrix:
             if (data_name == 'svhn'):
                 indices_train = [i for i,e in enumerate(train_set.labels) if e in sub] 
@@ -232,15 +257,17 @@ def expert_dataloader(
             else:
                 indices_train = [i for i,e in enumerate(train_set.targets) if e in sub] 
                 indices_test = [j for j,k in enumerate(test_set.targets) if k in sub]
+            
             index = ""
+            
             for i, sb_ in enumerate(sub):
                 index += str(sb_)
                 if (i < len(sub)-1):
                     index += "_"
+
             train_loader_expert[index] = torch.utils.data.DataLoader(
                 train_set,
                 batch_size=TRAIN_BATCH,
-                shuffle=True,
                 sampler = SubsetRandomSampler(indices_train))
             test_loader_expert[index] = torch.utils.data.DataLoader(
                 test_set,

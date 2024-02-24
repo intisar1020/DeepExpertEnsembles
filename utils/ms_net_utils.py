@@ -107,14 +107,14 @@ def return_topk_args_from_heatmap(matrix, n, cutoff_thresold=5, binary_=True):
     for elem1 in new_tuple:
         is_superset = True
         for elem2 in new_tuple:
-            if ((set(elem1) != set(elem2) and set(elem1).issubset(set(elem2))) or len(elem1)==2):
+            if ((set(elem1) != set(elem2) and set(elem1).issubset(set(elem2)))):# or len(elem1)==2):
                 is_superset = False
                 break
         if (is_superset):
             superset_list.append(elem1)
 
     final_tuples = tuple_list  + superset_list
-    return final_tuples, superset_list, dict_sorted
+    return tuple_list, superset_list, dict_sorted
     
 
 def heatmap(data, row_labels, col_labels, ax=None,

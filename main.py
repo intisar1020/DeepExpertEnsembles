@@ -1,5 +1,6 @@
 # System
 from ast import arg
+from operator import truediv
 from pickle import TRUE
 import random
 import copy
@@ -9,6 +10,7 @@ from re import split
 import sys
 import logging
 import time
+from tracemalloc import start
 from turtle import Turtle
 
 # torch
@@ -51,18 +53,18 @@ parser.add_argument('--teacher_exp_id', default='exp7', type=str, help='id of yo
 
 
 # Hyper-parameters
-parser.add_argument('--train_batch', default=128, type=int, metavar='N',
+parser.add_argument('--train_batch', default=256, type=int, metavar='N',
                     help='train batchsize')
-parser.add_argument('--test_batch', default=128, type=int, metavar='N',
+parser.add_argument('--test_batch', default=256, type=int, metavar='N',
                     help='test batchsize')
 
-parser.add_argument('--schedule', type=int, nargs='+', default=[60, 100, 120],
+parser.add_argument('--schedule', type=int, nargs='+', default=[60, 100, 130],
                         help='Decrease learning rate at these epochs.')
 
 parser.add_argument('--corrected_images', type=str, default='./corrected_images/')
 
 ###############################################################################
-parser.add_argument('--expert_train_epochs', type=int, default=180, metavar='N',
+parser.add_argument('--expert_train_epochs', type=int, default=150, metavar='N',
                     help='number of epochs to train experts')
 ##########################################################################
 
@@ -85,6 +87,10 @@ parser.add_argument('--log-interval', type=int, default=20, metavar='N',
 parser.add_argument('--evaluate_only_router', action='store_true',
                     help='evaluate router on testing set')
 
+
+########################## sampler related ######################
+parser.add_argument('-p_b', '--p_beta', type=float, default=2, required=False,
+                    help='to what extent you want to sampler from super/sub-sets?')
 parser.add_argument('--weighted_sampler', action='store_true',
                     help='what sampler you want?, subsetsampler or weighted')
 
@@ -100,7 +106,7 @@ parser.add_argument('--train_mode', action='store_true', default=True, help='Do 
 parser.add_argument('--topk', type=int, default=100, metavar='N',
                     help='how many experts you want?')
 
-parser.add_argument('-co', '--cutoff', type=int, default=3, help='at what point you want to cutoff')
+parser.add_argument('-co', '--cutoff', type=int, default=2, help='at what point you want to cutoff')
 ###########################################################################
 
 
@@ -182,7 +188,7 @@ def train(epoch, model, teacher, train_loader, optimizer):
     top2       = AverageMeter()
     model.train()
     end = time.time()
-    criterion_ce = nn.CrossEntropyLoss(label_smoothing=0.1)
+    criterion_ce = nn.CrossEntropyLoss()
     for i, (dta, target) in enumerate(train_loader, start=1):
         dta, target = dta.cuda(), target.cuda()
         output = model(dta) # infer, forward prop.
@@ -240,6 +246,7 @@ def train_distilled_ensemble(epoch, model, teacher_msnet, teacher_list, train_lo
         with torch.no_grad():
             outputs_teacher = [teacher_msnet[idx](dta).detach() for idx in teacher_list]
             output_teacher = average(outputs_teacher)
+            # output_teacher = output_teacher.detach()
         loss = (lambda_ * criterion(output, output_teacher)) +  ((1. - lambda_)  * criterion_ce(output, target))
         #loss = criterion_ce(output, target)
         prec1, prec2 = accuracy(output, target, topk=(1,2))
@@ -335,8 +342,12 @@ def make_router(num_classes, ckpt_path=None):
     model = model.cuda()
     if (ckpt_path):
         chk = torch.load(ckpt_path)
-        model.load_state_dict(chk['net'])
-        logging.info(f"Loading router from ckpt path: {ckpt_path}")
+        try:
+            model.load_state_dict(chk['state_dict'])
+            logging.info(f"Loading router from ckpt path: {ckpt_path}")
+        except Exception as e:
+            model.load_state_dict(chk['net'])
+            logging.info(f"Loading router from ckpt path: {ckpt_path}")
     
     return model
 
@@ -368,8 +379,13 @@ def load_experts(num_classes, list_of_index=[None], pretrained=True, teacher=Fal
             else:
                 chk_path = args.router_cp
             chk = torch.load(chk_path)
-            experts[loi].load_state_dict(chk['net'])
-            logging.info("Expert loaded with router weights")      
+            try:
+                experts[loi].load_state_dict(chk['state_dict'])
+            except Exception as e:
+                experts[loi].load_state_dict(chk['net'])
+            if (teacher):
+              logging.info("Loading teacher model")
+                
     
     return experts
 
@@ -464,7 +480,7 @@ def main():
     router_icc = make_router(num_classes, ckpt_path=args.router_cp_icc)
 
     size_of_router = sum(p.numel() for p in router.parameters() if p.requires_grad == True)
-    print ("Network size {:.2f}M".format(size_of_router/1000000))
+    print ("Network size {:.2f}M".format(size_of_router/1e6))
 
     logging.info("=====> Loading teacher network....")
     teacher = load_teacher_network()
@@ -492,7 +508,8 @@ def main():
                 matrix=super_list,
                 TRAIN_BATCH=args.train_batch, 
                 TEST_BATCH=args.test_batch,
-                weighted_sampler=True)
+                weighted_sampler=True, # set false is want to use only subset sampler. i.e. p(x == 1) = 0
+                p_beta=args.p_beta)
 
 
     # _,  single_class_test_dataloaders, _ = expert_dataloader(
@@ -509,9 +526,11 @@ def main():
     # In the following  we first list the names of all the pre-trained super-set experts.
     # These pretrained experts will serve as good teacher network. We will use ensemble of 
     # them for the training individual experts. So we first list all the index names 
-    index_list = os.listdir(os.path.join("workspace", args.data_name, args.teacher_exp_id, args.checkpoint_path))
-    split_f = lambda x: x.split(".")[0]
-    teacher_lois = [split_f(index_) for index_ in index_list]
+    distill = False
+    if (distill):
+        index_list = os.listdir(os.path.join("workspace", args.data_name, args.teacher_exp_id, args.checkpoint_path))
+        split_f = lambda x: x.split(".")[0]
+        teacher_lois = [split_f(index_) for index_ in index_list]
     
     for loi in lois:
         try:
@@ -524,11 +543,20 @@ def main():
         lois_named[loi] = name_str
         logging.info(f"Numeric index: {loi}, Named index: {name_str}")
     logging.info(f"Number of supersets: {len(super_list)}")
-  
-    # lois = lois[0:45] #+ lois[-3:] # training rest of experts.
-    msnet = load_experts(num_classes, list_of_index=lois, pretrained=False, teacher=False) # pool of de-coupled expoert networks.
-    teacher_msnet = load_experts(num_classes, list_of_index=teacher_lois, pretrained=True, teacher=True) # should set to true when using as teacher.
+    logging.info(f"Number of binary sets: {len(binary_list)}")
     
+    class_count_dict = {str(cls): 0 for cls in range(0, num_classes)}
+    for loi in lois:
+        expert_cls = loi.split("_")
+        for cls in expert_cls:
+            class_count_dict[cls] += 1
+    class_count_dict = {k:v for k, v in class_count_dict.items() if v > 0}
+    print (f"Total unique classes: {len(class_count_dict)}")
+    
+    lois = lois[86:] #+ lois[-3:] # training rest of experts.
+    msnet = load_experts(num_classes, list_of_index=lois, pretrained=False, teacher=False) # pool of de-coupled expoert networks.
+    # teacher_msnet = load_experts(num_classes, list_of_index=teacher_lois, pretrained=True, teacher=True) # should set to true when using as teacher.
+        
 
     args.train_mode = True
     # if (not args.train_mode):
@@ -551,27 +579,29 @@ def main():
 
 
     if (args.train_mode):
+        start_time = time.time()
         for loi in lois:
             optimizer = optim.SGD(msnet[loi].parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
             best_so_far = 0.0
-            teacher_supersets = get_teacher_list(loi, teacher_lois)
-            if (not len(teacher_supersets)): #  if we dont get suitable teacher model.
-                teacher_supersets = random.choices(teacher_lois, k=3) # randomly choose 3 teacher experts.
-            else:
-                teacher_supersets = random.choices(teacher_supersets, k=3)
+            # teacher_supersets = get_teacher_list(loi, teacher_lois)
+            # if (not len(teacher_supersets)): #  if we dont get suitable teacher model.
+            #     teacher_supersets = random.choices(teacher_lois, k=3) # randomly choose 3 teacher experts.
+            # else:
+            #     teacher_supersets = random.choices(teacher_supersets, k=3)
 
-            str_ = f"Teachers for distillation: {teacher_supersets}"
-            logging.info(f)
-    
+            # str_ = f"Teachers for distillation: {teacher_supersets}"
+            # logging.info(f)
+            # get per epoch time
+            start_time_epoch  = time.time()
             for epoch in range(1, args.expert_train_epochs):
                 adjust_learning_rate(epoch, optimizer)
-                # train(epoch, msnet[loi], teacher, expert_train_dataloaders[loi], optimizer)
-                train_distilled_ensemble(epoch, msnet[loi], teacher_msnet, teacher_supersets, expert_train_dataloaders[loi], optimizer)
+                train(epoch, msnet[loi], teacher, expert_train_dataloaders[loi], optimizer)
+                # train_distilled_ensemble(epoch, msnet[loi], teacher_msnet, teacher_supersets, expert_train_dataloaders[loi], optimizer)
                 t1, t2 = test_expert(msnet[loi], expert_test_dataloaders[loi])
                 t1_all, t2 = test_expert(msnet[loi], test_loader_router)
                 
                 is_best = False
-                if t1_all > best_so_far:
+                if t1_all > best_so_far: # if you want to save based on generality use t1_all, else t1.
                     best_so_far = t1_all
                     is_best = True
 
@@ -582,11 +612,18 @@ def main():
                     save_path = os.path.join(base_path, f'{loi}.pth')
                     torch.save({
                         'epoch': epoch,
-                        'net': msnet[loi].state_dict(),
+                        'state_dict': msnet[loi].state_dict(),
                         'prec@1': t1,
                         'prec@2': t2,
                         }, save_path)
-
+                    
+            end_time_epoch = time.time()
+            total_time_epoch = end_time_epoch - start_time_epoch
+            logging.info(f"Total time taken to complete per expert: {total_time_epoch/(60*60)}")
+        
+        end_time = time.time()
+        total = end_time - start_time
+        logging.info(f"Total time taken to complete training all experts: {total/(60*60)}")
 
 
 if __name__ == '__main__':

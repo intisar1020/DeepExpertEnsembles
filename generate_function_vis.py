@@ -62,9 +62,9 @@ parser.add_argument('--test-batch', default=128, type=int, metavar='N',
 # Paths
 parser.add_argument('-cp', '--checkpoint_path', default='checkpoint_experts', type=str, metavar='PATH',
                     help='path to save checkpoint (default: checkpoint_experts)')
-parser.add_argument('-router_cp', '--router_cp', default='work_space/pre-trained_wts/resnet20/run2/model_best.pth.tar', type=str, metavar='PATH',
+parser.add_argument('-router_cp', '--router_cp', default='./workspace/cifar100/cifar100_ensemble/checkpoint_experts/set1.pth.tar', type=str, metavar='PATH',
                     help='checkpoint path of the router weight')
-parser.add_argument('-router_cp_icc', '--router_cp_icc', default='work_space/pre-trained_wts/resnet20_icc/model_best.pth.tar', type=str, metavar='PATH',
+parser.add_argument('-router_cp_icc', '--router_cp_icc', default='./workspace/cifar100/cifar100_ensemble/checkpoint_experts/set1.pth.tar', type=str, metavar='PATH',
                     help='checkpoint path of the router weight for icc. We eval. router train on partial set of train data for ICC calculation.')
 
 parser.add_argument('-dp', '--dataset_path', default='/path/to/dataset', type=str)
@@ -270,10 +270,12 @@ def main():
     router = make_router(num_classes, ckpt_path=args.router_cp)
     list_of_experts = os.listdir(os.path.join("workspace", args.data_name, args.exp_id, "checkpoint_experts"))
     split_f = lambda x: x.split(".")[0]
-    lois = [split_f(index_) for index_ in list_of_experts if  "2" in split_f(index_)]
+    lois = [split_f(index_) for index_ in list_of_experts if  "3" in split_f(index_).split("_")]
+    print (lois)
+    exit(0)
     msnet = load_experts(num_classes, list_of_index=lois, pretrained=True)
     calc_disgreement(test_loader_router, router, msnet, lois)
-    #weight_similarity(router, msnet, lois)
+    weight_similarity(router, msnet, lois)
 
 if __name__ == '__main__':
     main() 
