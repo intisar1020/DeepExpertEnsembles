@@ -24,7 +24,7 @@ def get_train_transforms(data_name="none"):
     # transform_train = transforms.Compose([
     #     transforms.ToTensor(),
     #     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),])  
-    
+
     if ("cifar" in data_name):
         transform_train = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
@@ -34,7 +34,8 @@ def get_train_transforms(data_name="none"):
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
             transforms.RandomErasing(probability = 0.5, sh = 0.4, r1 = 0.3, ),])
         
-    if ("imagenet" in data_name):
+    elif ("imagenet" in data_name):
+         print ("Train DataLoader for Tiny-ImageNet")
          transform_train = transforms.Compose([
             transforms.RandomCrop(64, padding=4),
             transforms.RandomHorizontalFlip(),
@@ -43,8 +44,8 @@ def get_train_transforms(data_name="none"):
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
             transforms.RandomErasing(probability = 0.5, sh = 0.4, r1 = 0.3, ),])
          
-    if ("pets" in data_name):
-        print ("pets")
+    elif ("pets" in data_name):
+        print ("Train DataLoader for Pets")
         transform_train = transforms.Compose([
             transforms.Resize((64, 64)),
             transforms.RandomCrop(64, padding=4),
@@ -55,7 +56,8 @@ def get_train_transforms(data_name="none"):
             transforms.RandomErasing(probability = 0.5, sh = 0.4, r1 = 0.3, ),])
 
 
-    if ("mnist" in data_name):
+    elif ("mnist" in data_name):
+         print ("Train DataLoader for MNIST")
          transform_train = transforms.Compose([
             transforms.RandomCrop(28, padding=4),
             transforms.RandomHorizontalFlip(),
@@ -141,16 +143,16 @@ def get_dataloader(
 
     num_classes = len(trainset.classes)
     list_of_classes = trainset.classes
-    train_loader = DataLoader(trainset, batch_size=TRAIN_BATCH, shuffle=True, num_workers=4, pin_memory=True)
-    test_loader = DataLoader(testset, batch_size=TEST_BATCH, shuffle=False, num_workers=4, pin_memory=True)
-    test_loader_single = DataLoader(testset, batch_size=1, shuffle=False, num_workers=4, pin_memory=True)
-    val_loader_single = DataLoader(testset, batch_size=1, shuffle=False, num_workers=4, pin_memory=True)
+    train_loader = DataLoader(trainset, batch_size=TRAIN_BATCH, shuffle=True, num_workers=8, pin_memory=True)
+    test_loader = DataLoader(testset, batch_size=TEST_BATCH, shuffle=False, num_workers=8, pin_memory=True)
+    test_loader_single = DataLoader(testset, batch_size=1, shuffle=False, num_workers=8, pin_memory=True)
+    val_loader_single = DataLoader(testset, batch_size=1, shuffle=False, num_workers=8, pin_memory=True)
     
     return train_loader, test_loader, test_loader_single, val_loader_single, num_classes, list_of_classes
 
 
 def expert_dataloader(
-        data_name="cifar100",
+        data_name="none",
         dataset_path="path/to/dataset",
         matrix=[], 
         TRAIN_BATCH=128, 
@@ -234,7 +236,10 @@ def expert_dataloader(
             train_loader_expert[index] = torch.utils.data.DataLoader(
                 train_set,
                 batch_size=TRAIN_BATCH,
-                sampler = sampler_)
+                sampler = sampler_,
+                num_workers=8,
+                pin_memory=True                
+                )
             
             # for test only sample corresponding expert dataset.
             indices_test = [j for j,k in enumerate(test_set.targets) if k in sub] # sub is a list of classes like [35, 98]
@@ -242,7 +247,10 @@ def expert_dataloader(
             test_loader_expert[index] = torch.utils.data.DataLoader(
                 test_set,
                 batch_size=TEST_BATCH,
-                sampler = SubsetRandomSampler(indices_test))
+                sampler = SubsetRandomSampler(indices_test),
+                num_workers=8,
+                pin_memory=True                
+                )
             list_of_index.append(index)
         
         return train_loader_expert, test_loader_expert, list_of_index
@@ -268,11 +276,18 @@ def expert_dataloader(
             train_loader_expert[index] = torch.utils.data.DataLoader(
                 train_set,
                 batch_size=TRAIN_BATCH,
-                sampler = SubsetRandomSampler(indices_train))
+                sampler = SubsetRandomSampler(indices_train),
+                num_workers=8,
+                pin_memory=True                
+                )
+            
             test_loader_expert[index] = torch.utils.data.DataLoader(
                 test_set,
                 batch_size=TEST_BATCH,
-                sampler = SubsetRandomSampler(indices_test))
+                sampler = SubsetRandomSampler(indices_test),
+                num_workers=8,
+                pin_memory=True                
+                )
             list_of_index.append(index)
     
         return train_loader_expert, test_loader_expert, list_of_index

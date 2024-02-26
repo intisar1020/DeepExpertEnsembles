@@ -494,7 +494,12 @@ def main():
     matrix = calculate_matrix(router_icc, val_loader_single, num_classes, only_top2=True)
     #####################################################################################
     binary_list, super_list, dict_ = return_topk_args_from_heatmap(matrix, num_classes, cutoff_thresold=args.cutoff, binary_=False)
-
+    
+    
+    # super_list = binary_list
+    
+    
+    
     #####################################################################
     logging.info ("Calculating the heatmap for confusing class....")
     ls = np.arange(num_classes)
@@ -579,6 +584,7 @@ def main():
 
 
     if (args.train_mode):
+        logging.info(f"Training Started ..")
         start_time = time.time()
         for loi in lois:
             optimizer = optim.SGD(msnet[loi].parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
