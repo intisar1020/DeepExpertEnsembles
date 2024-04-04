@@ -52,7 +52,7 @@ parser.add_argument('-ckpt', '--checkpoint', default=None, help='checkpoint path
 parser.add_argument('--eval_only', action='store_true')
 
 # learning rate, scheduler, momentum
-parser.add_argument('--schedule', type=int, nargs='+', default=[100, 200, 280],
+parser.add_argument('--schedule', type=int, nargs='+', default=[100, 200, 250],
                         help='Decrease learning rate at these epochs.')
 parser.add_argument('--swa_from', type=int, default=200,
                     help='start swa from which epoch')
@@ -226,8 +226,8 @@ def main():
     best_so_far = 0
     for epoch in range(1, args.train_epochs):
         train(epoch, model, swa_model, trldr, optimizer)
-        #adjust_learning_rate(epoch, optimizer)
-        cosine_scheduler.step()
+        adjust_learning_rate(epoch, optimizer)
+        #cosine_scheduler.step()
         top1, top2 = test(model, tstldr)
         is_best = False
         if top1 > best_so_far:

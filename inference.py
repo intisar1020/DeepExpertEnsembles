@@ -82,6 +82,10 @@ parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
 parser.add_argument('-gpu', '--gpu_id', default=0, type=str, help='set gpu number')
 
+
+# one expert
+parser.add_argument('--one_expert', action='store_true', default=True, help='only one expert inference')
+
 args = parser.parse_args()
 
 
@@ -240,32 +244,32 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tot
             confs.append(conf.detach().cpu().numpy()[0])
     
         experts_output = []
-     
+
         list_of_experts = []
         visited = {str(cls_): 0 for cls_ in range(0, 100+1)}
-        #target_string = str(target.cpu().numpy()[0]) --> to verfiy
-        for exp in experts_on_stack: #
-            exp_cls = exp.split("_")
-            for r_pred in preds:
-                if (str(r_pred) in exp_cls and exp not in list_of_experts): # and not visited[str(r_pred)]):
+
+        args.one_expert = False
+        if (args.one_expert):
+            for exp in experts_on_stack: #
+                exp_cls = exp.split("_")
+                if (exp not in list_of_experts and  (str(preds[0]) in exp_cls and str(preds[1]) )):#) in exp_cls and str(preds[2] in exp_cls) ) ): # and not visited[str(r_pred)]):
                     list_of_experts.append(exp)
                     expert_count[exp] += 1
                     avg_experts_usage += 1
-                    visited[str(r_pred)] = 1
+                    # visited[str(r_pred)] = 1
                     break
-
-        # list_of_experts = []
-        # visited = {str(cls_): 0 for cls_ in range(0, 100+1)}
-        # #target_string = str(target.cpu().numpy()[0]) --> to verfiy
-        # for exp in experts_on_stack: #
-        #     exp_cls = exp.split("_")
-        #     if (exp not in list_of_experts and  (str(preds[0]) in exp_cls and str(preds[1]) )):#) in exp_cls and str(preds[2] in exp_cls) ) ): # and not visited[str(r_pred)]):
-        #         list_of_experts.append(exp)
-        #         expert_count[exp] += 1
-        #         avg_experts_usage += 1
-        #         # visited[str(r_pred)] = 1
-        #         #break
-
+        
+        else:
+            #target_string = str(target.cpu().numpy()[0]) --> to verfiy
+            for exp in experts_on_stack: #
+                exp_cls = exp.split("_")
+                for r_pred in preds:
+                    if (str(r_pred) in exp_cls and exp not in list_of_experts): # and not visited[str(r_pred)]):
+                        list_of_experts.append(exp)
+                        expert_count[exp] += 1
+                        avg_experts_usage += 1
+                        visited[str(r_pred)] = 1
+                        break
 
         #list_of_experts = random.choices(list_of_experts, k = 5)
         with torch.no_grad():
@@ -284,7 +288,7 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tot
        
     # print (f"** Expert dict: {expert_count}")
     #print (f"** MS-NET samples: {correct} \n, ** Router acc: {by_router} \n")
-    print (f"** MS-NET acc: {correct} \n, ** Router acc: {by_router} \n")
+    print (f"** MS-NET acc: {correct} \n** Router acc: {by_router}\n")
     print (f"** Average exp. usage: {avg_experts_usage/total_data}")
 
 

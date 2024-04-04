@@ -26,6 +26,7 @@ def get_train_transforms(data_name="none"):
     #     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),])  
 
     if ("cifar" in data_name):
+        print ("Train DataLoader for CIFAR-10/100")
         transform_train = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
@@ -137,16 +138,16 @@ def get_dataloader(
         )
     
     valset = datasets.ImageFolder(
-        root=os.path.join(dataset_path, "val"),
+        root=os.path.join(dataset_path, "test"),
         transform=get_test_transforms(data_name=data_name)
         )
 
     num_classes = len(trainset.classes)
     list_of_classes = trainset.classes
-    train_loader = DataLoader(trainset, batch_size=TRAIN_BATCH, shuffle=True, num_workers=8, pin_memory=True)
-    test_loader = DataLoader(testset, batch_size=TEST_BATCH, shuffle=False, num_workers=8, pin_memory=True)
-    test_loader_single = DataLoader(testset, batch_size=1, shuffle=False, num_workers=8, pin_memory=True)
-    val_loader_single = DataLoader(testset, batch_size=1, shuffle=False, num_workers=8, pin_memory=True)
+    train_loader = DataLoader(trainset, batch_size=TRAIN_BATCH, shuffle=True, num_workers=4, pin_memory=True)
+    test_loader = DataLoader(testset, batch_size=TEST_BATCH, shuffle=False, num_workers=4, pin_memory=True)
+    test_loader_single = DataLoader(testset, batch_size=1, shuffle=False, num_workers=0, pin_memory=True)
+    val_loader_single = DataLoader(valset, batch_size=1, shuffle=False, num_workers=0, pin_memory=True)
     
     return train_loader, test_loader, test_loader_single, val_loader_single, num_classes, list_of_classes
 
@@ -237,7 +238,7 @@ def expert_dataloader(
                 train_set,
                 batch_size=TRAIN_BATCH,
                 sampler = sampler_,
-                num_workers=8,
+                num_workers=4,
                 pin_memory=True                
                 )
             
@@ -248,7 +249,7 @@ def expert_dataloader(
                 test_set,
                 batch_size=TEST_BATCH,
                 sampler = SubsetRandomSampler(indices_test),
-                num_workers=8,
+                num_workers=4,
                 pin_memory=True                
                 )
             list_of_index.append(index)
@@ -277,7 +278,7 @@ def expert_dataloader(
                 train_set,
                 batch_size=TRAIN_BATCH,
                 sampler = SubsetRandomSampler(indices_train),
-                num_workers=8,
+                num_workers=4,
                 pin_memory=True                
                 )
             
@@ -285,7 +286,7 @@ def expert_dataloader(
                 test_set,
                 batch_size=TEST_BATCH,
                 sampler = SubsetRandomSampler(indices_test),
-                num_workers=8,
+                num_workers=4,
                 pin_memory=True                
                 )
             list_of_index.append(index)

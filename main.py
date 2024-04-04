@@ -53,9 +53,9 @@ parser.add_argument('--teacher_exp_id', default='exp7', type=str, help='id of yo
 
 
 # Hyper-parameters
-parser.add_argument('--train_batch', default=256, type=int, metavar='N',
+parser.add_argument('--train_batch', default=128, type=int, metavar='N',
                     help='train batchsize')
-parser.add_argument('--test_batch', default=256, type=int, metavar='N',
+parser.add_argument('--test_batch', default=128, type=int, metavar='N',
                     help='test batchsize')
 
 parser.add_argument('--schedule', type=int, nargs='+', default=[60, 100, 130],
@@ -99,22 +99,17 @@ parser.add_argument('--finetune_experts', action='store_true', default=True,
 
 parser.add_argument('--save_images', action='store_true', default=True)
 
+
 ###########################################################################
 parser.add_argument('--train_mode', action='store_true', default=True, help='Do you want to train or test?')
-
-
-parser.add_argument('--topk', type=int, default=100, metavar='N',
-                    help='how many experts you want?')
-
+parser.add_argument('--topk', type=int, default=100, metavar='N', help='how many experts you want?')
 parser.add_argument('-co', '--cutoff', type=int, default=2, help='at what point you want to cutoff')
 ###########################################################################
 
 
 # checkpoint Paths
-parser.add_argument('-cp', '--checkpoint_path', default='checkpoint_experts', type=str, metavar='PATH',
-                    help='path to save checkpoint (default: checkpoint_experts)')
-parser.add_argument('-router_cp', '--router_cp', default='workspace/pre-trained_wts/resnet20/run2/model_best.pth.tar', type=str, metavar='PATH',
-                    help='checkpoint path of the router weight')
+parser.add_argument('-cp', '--checkpoint_path', default='checkpoint_experts', type=str, metavar='PATH', help='path to save checkpoint (default: checkpoint_experts)')
+parser.add_argument('-router_cp', '--router_cp', default='workspace/pre-trained_wts/resnet20/run2/model_best.pth.tar', type=str, metavar='PATH', help='checkpoint path of the router weight')
 parser.add_argument('-router_cp_icc', '--router_cp_icc', default='workspace/pre-trained_wts/resnet20_icc/model_best.pth.tar', type=str, metavar='PATH',
                     help='checkpoint path of the router weight for icc. We eval. router train on partial set of train data for ICC calculation.')
 
@@ -126,18 +121,14 @@ parser.add_argument('-name', '--data_name', default='cifar100', type=str)
 
 
 # Architecture details
-parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet',
-                    help='backbone architecture')
-
+parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet', help='backbone architecture')
 parser.add_argument('--depth', type=int, default=20, help='Model depth.')
 parser.add_argument('--block-name', type=str, default='BasicBlock')
-parser.add_argument('--learning_rate', type=float, default=0.1, metavar='LR',
-                    help='initial learning rate to train')
+parser.add_argument('--learning_rate', type=float, default=0.1, metavar='LR', help='initial learning rate to train')
 
 # Miscs
 parser.add_argument('--manualSeed', type=int, help='manual seed')
-parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
-                    help='evaluate model on validation set')
+parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true', help='evaluate model on validation set')
 parser.add_argument('-gpu', '--gpu_id', default=0, type=str, help='set gpu number')
 
 args = parser.parse_args()
@@ -494,11 +485,7 @@ def main():
     matrix = calculate_matrix(router_icc, val_loader_single, num_classes, only_top2=True)
     #####################################################################################
     binary_list, super_list, dict_ = return_topk_args_from_heatmap(matrix, num_classes, cutoff_thresold=args.cutoff, binary_=False)
-    
-    
     # super_list = binary_list
-    
-    
     
     #####################################################################
     logging.info ("Calculating the heatmap for confusing class....")
@@ -558,7 +545,7 @@ def main():
     class_count_dict = {k:v for k, v in class_count_dict.items() if v > 0}
     print (f"Total unique classes: {len(class_count_dict)}")
     
-    lois = lois[86:] #+ lois[-3:] # training rest of experts.
+    #lois = lois[100:] #+ lois[-3:] # training rest of experts.
     msnet = load_experts(num_classes, list_of_index=lois, pretrained=False, teacher=False) # pool of de-coupled expoert networks.
     # teacher_msnet = load_experts(num_classes, list_of_index=teacher_lois, pretrained=True, teacher=True) # should set to true when using as teacher.
         

@@ -7,6 +7,7 @@ Created on Mon Feb  1 18:39:14 2021
 
 from enum import unique
 import os
+from turtle import color
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -113,7 +114,7 @@ def return_topk_args_from_heatmap(matrix, n, cutoff_thresold=5, binary_=True):
         if (is_superset):
             superset_list.append(elem1)
 
-    final_tuples = tuple_list  + superset_list
+    # final_tuples = tuple_list  + superset_list
     return tuple_list, superset_list, dict_sorted
     
 
@@ -168,8 +169,8 @@ def barchart(dict_):
         keys_.append(k)
         values_.append(v)
     y_pos = np.arange(len(keys_))
-    plt.bar(y_pos, values_, align='center', alpha=0.5)
-    plt.xticks(y_pos, keys_)
+    plt.bar(y_pos, values_, align='center', alpha=0.5, color='tab:blue')
+    plt.xticks(y_pos, keys_, rotation=45)
     plt.show()
 
 def make_list_for_plots(lois, plot, indexes):
