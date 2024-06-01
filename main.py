@@ -485,7 +485,7 @@ def main():
     matrix = calculate_matrix(router_icc, val_loader_single, num_classes, only_top2=True)
     #####################################################################################
     binary_list, super_list, dict_ = return_topk_args_from_heatmap(matrix, num_classes, cutoff_thresold=args.cutoff, binary_=False)
-    # super_list = binary_list
+    #super_list = binary_list
     
     #####################################################################
     logging.info ("Calculating the heatmap for confusing class....")
@@ -544,9 +544,9 @@ def main():
             class_count_dict[cls] += 1
     class_count_dict = {k:v for k, v in class_count_dict.items() if v > 0}
     print (f"Total unique classes: {len(class_count_dict)}")
-    
-    #lois = lois[100:] #+ lois[-3:] # training rest of experts.
-    msnet = load_experts(num_classes, list_of_index=lois, pretrained=False, teacher=False) # pool of de-coupled expoert networks.
+
+    # lois = lois[0:110] #+ lois[-3:] # training rest of experts.
+    msnet = load_experts(num_classes, list_of_index=lois, pretrained=True, teacher=False) # pool of de-coupled expoert networks.
     # teacher_msnet = load_experts(num_classes, list_of_index=teacher_lois, pretrained=True, teacher=True) # should set to true when using as teacher.
         
 

@@ -104,7 +104,7 @@ def main():
     binary_list_count_per_co = []
     super_list_count_per_co = []
     cos = [] 
-    for co in range(1, 20):
+    for co in range(2, 20):
         binary_list, super_list, dict_ = return_topk_args_from_heatmap(matrix, num_classes, cutoff_thresold=co, binary_=False)        
         binary_list_count_per_co.append(len(binary_list))
         super_list_count_per_co.append(len(super_list))
@@ -129,8 +129,8 @@ def main():
     # plt.gca().xaxis.set_major_locator(mticker.MultipleLocator(1))
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
     plt.grid(linestyle='--', linewidth=1)
-    ax1.legend()
-    ax2.legend()
+    # ax1.legend()
+    # ax2.legend()
     plt.show()
     
 

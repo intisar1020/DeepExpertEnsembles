@@ -39,11 +39,11 @@ parser.add_argument('--id', type=str, default='ti_resnet20_router', help='experi
 
 
 # training params.
-parser.add_argument('--train-batch', default=128, type=int, metavar='N',
+parser.add_argument('--train-batch', default=64, type=int, metavar='N',
                     help='train batchsize')
-parser.add_argument('--test-batch', default=128, type=int, metavar='N',
+parser.add_argument('--test-batch', default=64, type=int, metavar='N',
                     help='test batchsize')
-parser.add_argument('--train_epochs', default=80, type=int, help='total number of training epochs')
+parser.add_argument('--train_epochs', default=300, type=int, help='total number of training epochs')
 
 
 # pre-trained wts, resume
@@ -186,7 +186,7 @@ def main():
     trldr, tstldr, _, _, nc_, _ = get_dataloader(
         data_name=args.data_name,
         dataset_path=args.dataset, 
-        TRAIN_BATCH=256, 
+        TRAIN_BATCH=args.train_batch, 
         TEST_BATCH=256)
 
     # Prepare the main model.
@@ -212,7 +212,7 @@ def main():
     if (args.eval_only):
         ckpt = torch.load(args.checkpoint)
         ckpt = {k.replace("module.", ""): v for k,v in ckpt['state_dict'].items()}
-        model.load_state_dict(ckpt, strict=False)
+        model.load_state_dict(ckpt, strict=True)
         test(model, tstldr)
         return 
 

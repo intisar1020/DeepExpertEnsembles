@@ -200,7 +200,7 @@ def ensemble_inference(test_loader, experts, router):
     return top1.avg, top2.avg
 
 
-def inference_with_experts_and_routers(test_loader, experts, router, topk=2, total_data = 10000, temp_loader=None):
+def inference_with_experts_and_routers(test_loader, experts, router, topk=2, total_data = 10000, temp_loader=None, topk_experts=None):
     """ function to perform evaluation with experts
     
     Args:
@@ -246,9 +246,9 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tot
         experts_output = []
 
         list_of_experts = []
-        visited = {str(cls_): 0 for cls_ in range(0, 100+1)}
+        visited = {str(cls_): 0 for cls_ in range(0, 300+1)}
 
-        args.one_expert = False
+        args.one_expert = True
         if (args.one_expert):
             for exp in experts_on_stack: #
                 exp_cls = exp.split("_")
@@ -264,13 +264,16 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tot
             for exp in experts_on_stack: #
                 exp_cls = exp.split("_")
                 for r_pred in preds:
-                    if (str(r_pred) in exp_cls and exp not in list_of_experts): # and not visited[str(r_pred)]):
+                    if (str(r_pred) in exp_cls and exp not in list_of_experts):# and not visited[str(r_pred)]):
                         list_of_experts.append(exp)
                         expert_count[exp] += 1
                         avg_experts_usage += 1
                         visited[str(r_pred)] = 1
                         break
 
+        # trime the list of experts to only top-k experts. 
+        # if (len(list_of_experts) > topk_experts):
+        #     list_of_experts = random.choices(list_of_experts, k=topk_experts) 
         #list_of_experts = random.choices(list_of_experts, k = 5)
         with torch.no_grad():
             experts_output = [experts[exp_](dta) for exp_ in list_of_experts]
@@ -290,6 +293,7 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tot
     #print (f"** MS-NET samples: {correct} \n, ** Router acc: {by_router} \n")
     print (f"** MS-NET acc: {correct} \n** Router acc: {by_router}\n")
     print (f"** Average exp. usage: {avg_experts_usage/total_data}")
+    print (f"Total data: {total_data}")
 
 
 def main():
@@ -317,7 +321,7 @@ def main():
     if (args.ensemble_inference):
         ensemble_inference(test_loader_router, msnet, router)
     else:
-        inference_with_experts_and_routers(test_loader_single, msnet, router, total_data=total_data, topk=args.topk)
+        inference_with_experts_and_routers(test_loader_single, msnet, router, total_data=total_data, topk=args.topk, topk_experts=None)
 
 
 if __name__ == '__main__':
