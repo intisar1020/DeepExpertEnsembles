@@ -33,7 +33,6 @@ parser = argparse.ArgumentParser(description='Infernece scripts')
 
 #inference args.
 parser.add_argument('--exp_id', default='exp6', type=str, help='id of your current experiments')
-parser.add_argument('-name', '--data_name', default='cifar100', type=str)
 parser.add_argument('--topk', type=int, default=2, metavar='N',
                     help='how many experts you want?')
 parser.add_argument('--ensemble_inference', action='store_true', default=False, help='inference with all experts')
@@ -49,11 +48,12 @@ parser.add_argument('--log-interval', type=int, default=20, metavar='N',
 
 
 
-# data loaders stuff.
-parser.add_argument('--train-batch', default=128, type=int, metavar='N',
-                    help='train batchsize')
-parser.add_argument('--test-batch', default=128, type=int, metavar='N',
-                    help='test batchsize')
+# dataset and loaders stuff.
+parser.add_argument('--train-batch', default=128, type=int, metavar='N', help='train batchsize')
+parser.add_argument('--test-batch', default=128, type=int, metavar='N', help='test batchsize')
+parser.add_argument('-dp', '--dataset_path', default='/path/to/dataset', type=str)
+parser.add_argument('-name', '--data_name', default='cifar100', type=str)
+parser.add_argument('-save_log_path', '--save_log_path', default='./logs/', type=str)
 
 
 # Paths
@@ -64,13 +64,9 @@ parser.add_argument('-router_cp', '--router_cp', default='work_space/pre-trained
 parser.add_argument('-router_cp_icc', '--router_cp_icc', default='work_space/pre-trained_wts/resnet20_icc/model_best.pth.tar', type=str, metavar='PATH',
                     help='checkpoint path of the router weight for icc. We eval. router train on partial set of train data for ICC calculation.')
 
-parser.add_argument('-dp', '--dataset_path', default='/path/to/dataset', type=str)
-parser.add_argument('-save_log_path', '--save_log_path', default='./logs/', type=str)
-
 # Architecture details
 parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet',
                     help='backbone architecture')
-
 parser.add_argument('--depth', type=int, default=20, help='Model depth.')
 parser.add_argument('--block-name', type=str, default='BasicBlock')
 parser.add_argument('--learning_rate', type=float, default=0.1, metavar='LR',

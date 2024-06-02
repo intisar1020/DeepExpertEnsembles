@@ -183,7 +183,7 @@ def main():
     
     # Prepare dataloader. 
     #train_loader, test_loader, test_loader_single, val_loader_single, num_classes, list_of_classes
-    trldr, tstldr, _, _, nc_, _ = get_dataloader(
+    trldr, tstldr, _, _, nc_, loc = get_dataloader(
         data_name=args.data_name,
         dataset_path=args.dataset, 
         TRAIN_BATCH=args.train_batch, 

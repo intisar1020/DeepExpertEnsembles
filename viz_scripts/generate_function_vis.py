@@ -1,6 +1,9 @@
 # generated graphs.
 
 # System
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from math import sqrt
 import random
 from numpy.linalg import norm
@@ -17,7 +20,8 @@ from tqdm import tqdm
 
 import torch
 import torch.nn.functional as F
-from msnet import MSNET
+# from msnet import MSNET
+# from ..models import cifar as models
 import models.cifar as models
 from utils.ms_net_utils import *
 from utils.data_utils import *
@@ -270,12 +274,12 @@ def main():
     router = make_router(num_classes, ckpt_path=args.router_cp)
     list_of_experts = os.listdir(os.path.join("workspace", args.data_name, args.exp_id, "checkpoint_experts"))
     split_f = lambda x: x.split(".")[0]
-    lois = [split_f(index_) for index_ in list_of_experts if  "3" in split_f(index_).split("_")]
-    print (lois)
-    exit(0)
+    lois = [split_f(index_) for index_ in list_of_experts]#  if  "3" in split_f(index_).split("_")]
+    lois = lois[:10]
+    
     msnet = load_experts(num_classes, list_of_index=lois, pretrained=True)
-    calc_disgreement(test_loader_router, router, msnet, lois)
-    weight_similarity(router, msnet, lois)
+    calc_disgreement(test_loader_router, router, msnet, lois) # function space.
+    weight_similarity(router, msnet, lois) # weight space.
 
 if __name__ == '__main__':
     main() 
