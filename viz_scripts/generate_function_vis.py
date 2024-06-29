@@ -147,9 +147,10 @@ def load_experts(num_classes, list_of_index=[None], pretrained=True):
             try:
                 chk_path = os.path.join("workspace", args.data_name, args.exp_id, args.checkpoint_path, loi + '.pth')
                 chk = torch.load(chk_path)
-                experts[loi].load_state_dict(chk['net'])
+                experts[loi].load_state_dict(chk['state_dict'])
             except Exception as e:
-                error_str = f"Load error for expert {loi}"
+                error_str = f"Load error for expert {loi}, trying different keys"
+                experts[loi].load_state_dict(chk['net'])
                 logging.info(error_str)
     
     return experts
@@ -203,7 +204,9 @@ def calc_disgreement(test_loader, router, msnet, lois):
     axis = np.arange(0, len(lois) + 1)
     plt.xticks(axis,axis, rotation=45, rotation_mode="anchor")
     plt.yticks(axis,np.flip(axis), rotation=45, rotation_mode="anchor")
-    plt.savefig('./prediction_disagreement.png')
+    plt.xlabel("checkpoint index (router and experts)")
+    plt.ylabel("checkpoint index")
+    plt.savefig('./ti_cutoff2_107exp_ti3_predicton_disagreement.png')
 
 
 # Get the weights of the input model. 
@@ -250,7 +253,9 @@ def weight_similarity(router, msnet, lois):
    axis = np.arange(0, len(lois) + 1)
    plt.xticks(axis,axis, rotation=45, rotation_mode="anchor")
    plt.yticks(axis,np.flip(axis), rotation=45, rotation_mode="anchor")
-   plt.savefig('./func_similarity.png')
+   plt.xlabel("checkpoint index (router and experts)")
+   plt.ylabel("checkpoint index")
+   plt.savefig('./ti_cutoff2_func_similarity_ti3.png')
 
 
 def main():
@@ -275,7 +280,7 @@ def main():
     list_of_experts = os.listdir(os.path.join("workspace", args.data_name, args.exp_id, "checkpoint_experts"))
     split_f = lambda x: x.split(".")[0]
     lois = [split_f(index_) for index_ in list_of_experts]#  if  "3" in split_f(index_).split("_")]
-    lois = lois[:10]
+    lois = lois[:50]
     
     msnet = load_experts(num_classes, list_of_index=lois, pretrained=True)
     calc_disgreement(test_loader_router, router, msnet, lois) # function space.

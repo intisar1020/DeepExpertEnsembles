@@ -1,5 +1,6 @@
 # System
 from email import header
+from email.policy import strict
 from enum import auto
 from pickle import TRUE
 from pydoc import visiblename
@@ -59,7 +60,7 @@ parser.add_argument('-save_log_path', '--save_log_path', default='./logs/', type
 # Paths
 parser.add_argument('-cp', '--checkpoint_path', default='checkpoint_experts', type=str, metavar='PATH',
                     help='path to save checkpoint (default: checkpoint_experts)')
-parser.add_argument('-router_cp', '--router_cp', default='work_space/pre-trained_wts/resnet20/run2/model_best.pth.tar', type=str, metavar='PATH',
+parser.add_argument('-router_cp', '--router_cp', default='./workspace/pre-trained_wts/resnet20/run1/model_best.pth.tar', type=str, metavar='PATH',
                     help='checkpoint path of the router weight')
 parser.add_argument('-router_cp_icc', '--router_cp_icc', default='work_space/pre-trained_wts/resnet20_icc/model_best.pth.tar', type=str, metavar='PATH',
                     help='checkpoint path of the router weight for icc. We eval. router train on partial set of train data for ICC calculation.')
@@ -123,6 +124,11 @@ def load_experts(num_classes, list_of_index=[None], pretrained=True):
                 chk_path = os.path.join("workspace", args.data_name, args.exp_id, args.checkpoint_path, loi + '.pth')
                 chk = torch.load(chk_path)
                 #chk_path = os.path.join("workspace", args.data_name, args.exp_id, args.checkpoint_path, loi + '.pth.tar')
+            except KeyError as KE:
+                error_str = f"Load error for expert {loi}"
+                chk_path = os.path.join("workspace", args.data_name, args.exp_id, args.checkpoint_path, loi + '.pth.tar')
+                chk = torch.load(chk_path)
+                logging.info(error_str)
             except Exception as e:
                 error_str = f"Load error for expert {loi}"
                 chk_path = os.path.join("workspace", args.data_name, args.exp_id, args.checkpoint_path, loi + '.pth.tar')
@@ -155,7 +161,7 @@ def make_router(num_classes, ckpt_path=None):
     if (ckpt_path):
         chk = torch.load(ckpt_path)
         try:
-            model.load_state_dict(chk['net'])
+            model.load_state_dict(chk['net'], strict=False)
         except Exception as e:
             model.load_state_dict(chk['state_dict'])
         logging.info(f"Loading router from ckpt path: {ckpt_path}")
@@ -313,6 +319,7 @@ def main():
     #         class_count_dict[cls] += 1
     # class_count_dict = {k:v for k, v in class_count_dict.items() if v > 0}
     # print (len(class_count_dict))
+
     msnet = load_experts(num_classes, list_of_index=lois, pretrained=True)
     if (args.ensemble_inference):
         ensemble_inference(test_loader_router, msnet, router)
