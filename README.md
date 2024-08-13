@@ -1,5 +1,5 @@
 # MS-NET-v2
-## Modular architectures enhance Deep Neural
+Modular architectures enhance Deep Neural
 Networks (DNNs) by reducing error rates, enabling un-
 certainty estimation, and increasing inference efficiency
 through selective module execution. While modular en-
