@@ -1,11 +1,8 @@
-from ast import mod
-from configparser import NoOptionError
-from email.policy import strict
+
 import os
 import sys
 import argparse
 import logging
-from tabnanny import verbose
 import time
 
 # torch
@@ -35,7 +32,7 @@ parser = argparse.ArgumentParser(description='Stable MS-NET')
 
 # save dirs:
 parser.add_argument('--save_root', type=str, default='workspace', help='models and logs are saved here')
-parser.add_argument('--id', type=str, default='ti_resnet20_router', help='experiment IDS')
+parser.add_argument('--id', type=str, default='ti_resnet8_router', help='experiment IDS')
 
 
 # training params.
@@ -52,7 +49,7 @@ parser.add_argument('-ckpt', '--checkpoint', default=None, help='checkpoint path
 parser.add_argument('--eval_only', action='store_true')
 
 # learning rate, scheduler, momentum
-parser.add_argument('--schedule', type=int, nargs='+', default=[100, 200, 250],
+parser.add_argument('--schedule', type=int, nargs='+', default=[100, 200, 250, 290],
                         help='Decrease learning rate at these epochs.')
 parser.add_argument('--swa_from', type=int, default=200,
                     help='start swa from which epoch')
@@ -221,7 +218,7 @@ def main():
         lr=args.lr, 
         momentum=0.9,
         weight_decay=1e-4)
-    cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=20, eta_min=0.0001, verbose=True)
+    # cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=20, eta_min=0.0001, verbose=True)
     
     best_so_far = 0
     for epoch in range(1, args.train_epochs):

@@ -1,5 +1,4 @@
 import os
-from symbol import pass_stmt
 import torch
 import numpy as np
 import transforms

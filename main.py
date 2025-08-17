@@ -48,7 +48,7 @@ from kd_losses import *
 parser = argparse.ArgumentParser(description='Stable MS-NET')
 
 #experiment tracker
-parser.add_argument('--exp_id', default='exp7', type=str, help='id of your current experiments')
+parser.add_argument('--exp_id', default='ti_resnet8_msnet', type=str, help='id of your current experiments')
 parser.add_argument('--teacher_exp_id', default='exp7', type=str, help='id of your current experiments')
 
 
@@ -60,7 +60,7 @@ parser.add_argument('--test_batch', default=128, type=int, metavar='N',
 
 parser.add_argument('--schedule', type=int, nargs='+', default=[60, 100, 130],
                         help='Decrease learning rate at these epochs.')
-
+# [60, 100, 130],
 parser.add_argument('--corrected_images', type=str, default='./corrected_images/')
 
 ###############################################################################
@@ -103,7 +103,7 @@ parser.add_argument('--save_images', action='store_true', default=True)
 ###########################################################################
 parser.add_argument('--train_mode', action='store_true', default=True, help='Do you want to train or test?')
 parser.add_argument('--topk', type=int, default=100, metavar='N', help='how many experts you want?')
-parser.add_argument('-co', '--cutoff', type=int, default=2, help='at what point you want to cutoff')
+parser.add_argument('-co', '--cutoff', type=int, default=3, help='at what point you want to cutoff')
 ###########################################################################
 
 
@@ -122,7 +122,7 @@ parser.add_argument('-name', '--data_name', default='cifar100', type=str)
 
 # Architecture details
 parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet', help='backbone architecture')
-parser.add_argument('--depth', type=int, default=20, help='Model depth.')
+parser.add_argument('--depth', type=int, default=8, help='Model depth.')
 parser.add_argument('--block-name', type=str, default='BasicBlock')
 parser.add_argument('--learning_rate', type=float, default=0.1, metavar='LR', help='initial learning rate to train')
 
@@ -391,8 +391,11 @@ def load_teacher_network():
         dropRate=0,
         )
     teacher = torch.nn.DataParallel(teacher).cuda()
-    checkpoint = torch.load("workspace/pre-trained_wts/resnext/model_best.pth.tar")
-    teacher.load_state_dict(checkpoint['state_dict'])
+    try:
+        checkpoint = torch.load("workspace/pre-trained_wts/resnext/model_best.pth.tar")
+        teacher.load_state_dict(checkpoint['state_dict'])
+    except Exception as e:
+        logging.error(f"No checkpoint found, returning random. init. teacher.")
     return teacher
 
         
@@ -485,7 +488,7 @@ def main():
     matrix = calculate_matrix(router_icc, val_loader_single, num_classes, only_top2=True)
     #####################################################################################
     binary_list, super_list, dict_ = return_topk_args_from_heatmap(matrix, num_classes, cutoff_thresold=args.cutoff, binary_=False)
-    super_list = binary_list
+    # super_list = binary_list
     
     #####################################################################
     logging.info ("Calculating the heatmap for confusing class....")
@@ -546,9 +549,9 @@ def main():
     print (f"Total unique classes: {len(class_count_dict)}")
 
     # lois = lois[0:110] #+ lois[-3:] # training rest of experts.
-    msnet = load_experts(num_classes, list_of_index=lois, pretrained=True, teacher=False) # pool of de-coupled expoert networks.
+    msnet = load_experts(num_classes, list_of_index=lois, pretrained=False, teacher=False) # pool of de-coupled expoert networks.
     # teacher_msnet = load_experts(num_classes, list_of_index=teacher_lois, pretrained=True, teacher=True) # should set to true when using as teacher.
-        
+    
 
     args.train_mode = True
     # if (not args.train_mode):

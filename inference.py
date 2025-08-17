@@ -60,9 +60,9 @@ parser.add_argument('-save_log_path', '--save_log_path', default='./logs/', type
 # Paths
 parser.add_argument('-cp', '--checkpoint_path', default='checkpoint_experts', type=str, metavar='PATH',
                     help='path to save checkpoint (default: checkpoint_experts)')
-parser.add_argument('-router_cp', '--router_cp', default='./workspace/pre-trained_wts/resnet20/run1/model_best.pth.tar', type=str, metavar='PATH',
+parser.add_argument('-router_cp', '--router_cp', default='workspace/c10_preresnet_run1/model_best.pth.tar', type=str, metavar='PATH',
                     help='checkpoint path of the router weight')
-parser.add_argument('-router_cp_icc', '--router_cp_icc', default='work_space/pre-trained_wts/resnet20_icc/model_best.pth.tar', type=str, metavar='PATH',
+parser.add_argument('-router_cp_icc', '--router_cp_icc', default='workspace/c10_preresnet_run1/model_best.pth.tar', type=str, metavar='PATH',
                     help='checkpoint path of the router weight for icc. We eval. router train on partial set of train data for ICC calculation.')
 
 # Architecture details
@@ -250,7 +250,7 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tot
         list_of_experts = []
         visited = {str(cls_): 0 for cls_ in range(0, 300+1)}
 
-        args.one_expert = True
+        args.one_expert = False
         if (args.one_expert):
             for exp in experts_on_stack: #
                 exp_cls = exp.split("_")
@@ -262,11 +262,11 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tot
                     break
         
         else:
-            #target_string = str(target.cpu().numpy()[0]) --> to verfiy
+            target_string = str(target.cpu().numpy()[0])#  --> to verfiy
             for exp in experts_on_stack: #
                 exp_cls = exp.split("_")
                 for r_pred in preds:
-                    if (str(r_pred) in exp_cls and exp not in list_of_experts):# and not visited[str(r_pred)]):
+                    if (str(r_pred) in exp_cls and exp not in list_of_experts):# and str(r_pred) in target_string):# and not visited[str(r_pred)]):
                         list_of_experts.append(exp)
                         expert_count[exp] += 1
                         avg_experts_usage += 1
@@ -278,7 +278,7 @@ def inference_with_experts_and_routers(test_loader, experts, router, topk=2, tot
         #     list_of_experts = random.choices(list_of_experts, k=topk_experts) 
         #list_of_experts = random.choices(list_of_experts, k = 5)
         with torch.no_grad():
-            experts_output = [experts[exp_](dta) for exp_ in list_of_experts]
+            experts_output = [experts[exp_](dta)/3.01 for exp_ in list_of_experts]
         experts_output.append(output_raw) # (1 + math.e**(-1/len(exp_.split("_"))))
         experts_output_avg = average(experts_output)
         exp_conf, exp_pred = torch.sort(experts_output_avg, dim=1, descending=True)
@@ -311,7 +311,7 @@ def main():
     list_of_experts = os.listdir(os.path.join("workspace", args.data_name, args.exp_id, "checkpoint_experts"))
     split_f = lambda x: x.split(".")[0]
     lois = [split_f(index_) for index_ in list_of_experts]
-    #lois = lois[: 27]
+    # lois = lois[: 10]
     # class_count_dict = {str(cls): 0 for cls in range(0, 201)}
     # for loi in lois:
     #     expert_cls = loi.split("_")
