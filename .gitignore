@@ -38,3 +38,4 @@
 
 datasets/
 dataset.zip
+*.onnx
