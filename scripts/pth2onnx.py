@@ -2,6 +2,8 @@ import torch
 import os
 import sys
 import os
+import argparse
+
 os.environ["TORCH_CPP_LOG_LEVEL"] = "ERROR"
 
 import warnings
@@ -32,7 +34,6 @@ class PthToOnnxConverter:
         try:
             checkpoint = torch.load(pth_path, map_location='cpu')
 
-            # Handle common checkpoint formats
             if 'net' in checkpoint:
                 state_dict = checkpoint['net']
             elif 'state_dict' in checkpoint:
@@ -40,13 +41,12 @@ class PthToOnnxConverter:
             else:
                 state_dict = checkpoint
 
-            # Remove 'module.' prefix if present
             state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
             self.model.load_state_dict(state_dict)
             self.model.eval()
 
         except Exception as e:
-            print(f"❌ Error loading checkpoint: {e}")
+            print(f"Error loading checkpoint: {e}")
             return
 
         export_model_name = os.path.basename(pth_path).replace('.pth', '.onnx').replace('.tar', '.onnx')
@@ -62,26 +62,28 @@ class PthToOnnxConverter:
                 dynamic_axes=self.dynamic_axes,
                 opset_version=11,  # use modern opset
             )
-            print(f"✅ Model has been converted to ONNX and saved at {export_file}")
+            print(f"Model has been converted to ONNX and saved at {export_file}")
 
         except Exception as e:
-            print(f"❌ Error exporting to ONNX: {e}")
+            print(f"Error exporting to ONNX: {e}")
 
 
 if __name__ == "__main__":
-    pth_path = '/Users/intisar/Documents/research/source/msnets/DeepExpertEnsembles/workspace/cifar100/c100_5.5/checkpoint_experts'
-    pth_paths = [os.path.join(pth_path, f) for f in os.listdir(pth_path) if f.endswith(('.pth', '.tar'))]
-
-    # Build your model
+    parser = argparse.ArgumentParser(description="Convert PyTorch .pth models to ONNX format.")
+    parser.add_argument('--pth_path', type=str, required=False,
+                        help="Path to the directory containing .pth or .tar model files.")
+    parser.add_argument('--export_path', type=str, default='./onnx_exports/',
+                        help="Directory to save the converted ONNX models.")
+    args = parser.parse_args()
+    
+    pth_paths = [os.path.join(args.pth_path, f) for f in os.listdir(args.pth_path) if f.endswith(('.pth', '.tar'))]
     model = models.__dict__['resnet'](num_classes=100, depth=20, block_name='BasicBlock')
 
-    # Converter
     converter = PthToOnnxConverter(
         model=model,
         dummy_input=torch.randn(1, 3, 32, 32),
-        export_path='./onnx_exports/'
+        export_path=args.export_path
     )
 
-    # Convert all checkpoints
     for pth in pth_paths:
         converter(pth)
