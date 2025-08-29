@@ -40,5 +40,5 @@ datasets/
 dataset.zip
 *.onnx
 
-viz_scripts/
+viz_scripts/*
 *.sh
