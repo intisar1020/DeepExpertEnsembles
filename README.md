@@ -8,11 +8,11 @@ Modular architectures enhance Deep Neural Networks (DNNs) by reducing error rate
 ```bash
 git clone https://github.com/intisar1020/DeepExpertEnsembles
 cd DeepExpertEnsembles
-
+```
 2. Install dependencies
 ```bash
 pip install -r requirements.txt
-
+```
 3. Prepare datasets
 Download and extract the datasets (CIFAR-10, CIFAR-100, Tiny-ImageNet, Pets) into the `datasets` directory.
 ```bash
