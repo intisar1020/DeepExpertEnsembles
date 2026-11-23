@@ -45,7 +45,7 @@ parser.add_argument('--learning_rate', type=float, default=0.1, metavar='LR', he
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true', help='evaluate model on validation set')
 parser.add_argument('-gpu', '--gpu_id', default=0, type=str, help='set gpu number')
-parser.add_argument('--one_expert', action='store_true', default=True, help='only one expert inference')
+parser.add_argument('--one_expert', action='store_true', default=False, help='only one expert inference')
 
 args = parser.parse_args()
 
